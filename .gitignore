@@ -1,0 +1,15 @@
+node_modules
+.turbo
+.next
+dist
+build
+.venv
+__pycache__
+.pytest_cache
+.mypy_cache
+.DS_Store
+.env
+*.log
+postgres_data
+minio_data
+MULTIMODAL_RAG_MONOREPO_REVERSE_ENGINEERING_PLAN

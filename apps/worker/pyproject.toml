@@ -1,0 +1,13 @@
+[project]
+name = "atlas-rag-worker"
+version = "0.1.0"
+description = "Background worker for AtlasRAG"
+requires-python = ">=3.12"
+dependencies = [
+  "celery>=5.6.2,<5.7.0",
+  "redis>=7.3.0,<8.0.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
