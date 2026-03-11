@@ -138,3 +138,27 @@ Use this format for future updates:
   This simplifies server setup and aligns the API with the hosted Supabase surface, but it trades some direct SQL flexibility for API-based access patterns in the core app path.
 - Affected paths:
   `apps/api/src/`, `apps/api/README.md`, `.env.example`, `README.md`
+
+## DEC-010: The Phase 3 schema keeps retrieval text separate from original content
+- Date: 2026-03-11
+- Status: accepted
+- Context:
+  Document chunks need to support both efficient search and grounded answer generation. A single overloaded content column makes those goals fight each other.
+- Decision:
+  Store `retrieval_text` for search, `original_content` as JSONB for source fidelity, and `modality_flags` for multimodal metadata in `document_chunks`.
+- Tradeoffs:
+  This adds some schema complexity and storage overhead, but it preserves better retrieval tuning and richer final-answer context.
+- Affected paths:
+  `supabase/migrations/`, `supabase/seed.sql`, `packages/types/src/index.ts`
+
+## DEC-011: Retrieval support is built into the schema baseline
+- Date: 2026-03-11
+- Status: accepted
+- Context:
+  Phase 3 should produce a database that is ready for hybrid search, not just generic CRUD tables.
+- Decision:
+  Add the `vector` extension, generated `tsvector` search column, vector and keyword indexes, and baseline SQL functions for vector and keyword chunk search in the initial migration.
+- Tradeoffs:
+  This makes the first migration heavier, but it avoids a second schema rewrite when retrieval work starts.
+- Affected paths:
+  `supabase/migrations/20260311140000_phase_3_initial_schema.sql`
