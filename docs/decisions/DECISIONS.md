@@ -1,0 +1,140 @@
+# AtlasRAG Decisions
+
+This file records architecture patterns, defaults, and tradeoffs for the repo.
+
+Update this file when a change does one of these things:
+
+- introduces a new platform dependency
+- changes a major integration boundary
+- replaces a default tool or workflow
+- adds a pattern other contributors should follow
+- changes a previous decision in a meaningful way
+
+## Working Rules
+
+1. Prefer append-only updates.
+2. If a decision changes, mark the older one as superseded instead of deleting it.
+3. Capture the reason, not just the outcome.
+4. Link the affected files or directories when the decision is implementation-specific.
+
+## Decision Template
+
+Use this format for future updates:
+
+```md
+## DEC-00X: Short title
+- Date: YYYY-MM-DD
+- Status: accepted | superseded
+- Context:
+- Decision:
+- Tradeoffs:
+- Affected paths:
+```
+
+## DEC-001: Local infrastructure uses Docker Compose
+- Date: 2026-03-10
+- Status: accepted
+- Context:
+  The project still needs a lightweight local service boundary for worker development.
+- Decision:
+  Use `docker compose` only for the services that still need to run locally, starting with Redis.
+- Tradeoffs:
+  This keeps the local stack small, but it also means part of development now depends on a remote Supabase project being configured correctly.
+- Affected paths:
+  `infra/compose/`, `scripts/dev/`, `README.md`
+
+## DEC-002: Postgres + pgvector is the default data plane
+- Date: 2026-03-10
+- Status: superseded
+- Context:
+  The first Phase 2 draft used a self-hosted Postgres container with `pgvector`.
+- Decision:
+  Superseded by DEC-005.
+- Tradeoffs:
+  The original choice was operationally clear, but it was heavier than necessary for the current build stage.
+- Affected paths:
+  `infra/compose/docker-compose.yml`, `infra/sql/`
+
+## DEC-003: Use MinIO locally instead of cloud object storage
+- Date: 2026-03-10
+- Status: superseded
+- Context:
+  The first Phase 2 draft used MinIO as a local S3-compatible storage layer.
+- Decision:
+  Superseded by DEC-006.
+- Tradeoffs:
+  MinIO was workable, but it added another local service and another admin surface during early development.
+- Affected paths:
+  `infra/compose/docker-compose.yml`, `README.md`
+
+## DEC-004: Keep Redis as a dedicated worker coordination dependency
+- Date: 2026-03-10
+- Status: accepted
+- Context:
+  The source architecture uses Celery-style background processing. Redis is the simplest local broker/cache to support that direction.
+- Decision:
+  Run Redis as a separate local service now, even before worker jobs are fully implemented.
+- Tradeoffs:
+  This adds another service to the local stack, but it avoids redesigning the worker setup later.
+- Affected paths:
+  `infra/compose/docker-compose.yml`, `apps/worker/`
+
+## DEC-005: Use managed Supabase for database and vector support in Phase 2
+- Date: 2026-03-10
+- Status: accepted
+- Context:
+  The project needs Postgres, vector search, dashboard access, and a simpler setup path than maintaining a full local database stack.
+- Decision:
+  Use a managed Supabase project as the default Phase 2 backend for Postgres and `pgvector`.
+- Tradeoffs:
+  This reduces local setup and keeps the platform cohesive, but it introduces a dependency on external project credentials and a network-reachable Supabase environment.
+- Affected paths:
+  `.env.example`, `README.md`, `supabase/`
+
+## DEC-006: Use Supabase Storage instead of local MinIO in Phase 2
+- Date: 2026-03-10
+- Status: accepted
+- Context:
+  The project already needs Supabase for the database path, and early development benefits from fewer infrastructure pieces.
+- Decision:
+  Use Supabase Storage for uploads instead of maintaining a separate local MinIO service.
+- Tradeoffs:
+  This simplifies the stack and aligns storage with the same platform as the database, but it reduces fully offline local development.
+- Affected paths:
+  `.env.example`, `README.md`, `infra/compose/docker-compose.yml`
+
+## DEC-007: FastAPI loads server configuration from explicit environment settings
+- Date: 2026-03-10
+- Status: accepted
+- Context:
+  The API now needs server-only Supabase and Redis configuration, and ad hoc environment reads would become brittle as routes and services grow.
+- Decision:
+  Centralize FastAPI configuration in a settings module using `pydantic-settings`, with startup validation for required server variables.
+- Tradeoffs:
+  This adds one small dependency, but it creates a consistent and testable configuration boundary for the API.
+- Affected paths:
+  `apps/api/src/`, `apps/api/pyproject.toml`, `.env.example`
+
+## DEC-008: Development app ports avoid the common defaults
+- Date: 2026-03-11
+- Status: accepted
+- Context:
+  Ports `3000` and `8000` frequently collide with other local projects and tools.
+- Decision:
+  Use `3101` as the default web port and `8011` as the default FastAPI port in local development documentation and scripts.
+- Tradeoffs:
+  This slightly diverges from ecosystem defaults, but it reduces local setup friction in multi-project environments.
+- Affected paths:
+  `apps/web/package.json`, `README.md`, `apps/api/README.md`, `.env.example`
+
+## DEC-009: FastAPI uses the Supabase Python client as the default server integration
+- Date: 2026-03-11
+- Status: accepted
+- Context:
+  Direct Postgres connectivity is harder to validate across environments and is not required for most application-level CRUD and storage flows.
+- Decision:
+  Use the Supabase Python client with `SUPABASE_URL` and a server-side key as the default FastAPI integration path, while keeping `SUPABASE_DB_URL` optional for migrations and raw SQL tooling.
+- Tradeoffs:
+  This simplifies server setup and aligns the API with the hosted Supabase surface, but it trades some direct SQL flexibility for API-based access patterns in the core app path.
+- Affected paths:
+  `apps/api/src/`, `apps/api/README.md`, `.env.example`, `README.md`
