@@ -213,6 +213,30 @@ as $$
   limit greatest(match_count, 1);
 $$;
 
+-- ─── DEFERRED COLUMNS ROADMAP ────────────────────────────────────────────────
+-- The following columns are intentionally absent from this migration.
+-- Add each one in the migration for the phase that first writes to it.
+-- Columns with no writers are dead weight and mislead anyone reading the schema.
+--
+-- Phase 7  → project_documents.task_id (text, nullable)
+--            The Celery task ID returned when a document is queued for processing.
+--            Without it there is no link between the DB row and the background job.
+--
+-- Phase 8  → document_chunks.element_type (jsonb, nullable)
+--            The raw element type from the parser (NarrativeText, Table, Image…).
+--            Phase 10 summarisation and Phase 16 pipeline viewer both branch on it.
+--
+-- Phase 12 → project_settings.reranking_enabled (bool, default false)
+--            project_settings.reranking_model   (text, nullable)
+--            Note: final_context_size and query_variation_count are already present.
+--
+-- Phase 13 → project_settings.agent_type
+--              (text, default 'simple_agent',
+--               check agent_type in ('simple_agent', 'supervisor_agent'))
+--            Determines whether a query uses the RAG-only agent or the supervisor
+--            agent that can fall back to web search.
+-- ─────────────────────────────────────────────────────────────────────────────
+
 create or replace function public.search_document_chunks_keyword(
   query_text text,
   match_count integer default 8,

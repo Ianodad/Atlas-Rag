@@ -5,6 +5,13 @@ from ..schemas.auth import CurrentUser
 from ..schemas.chats import ChatCreate, ChatDetailResponse, ChatResponse, MessageCreate, MessageResponse
 from ..services.chats import ChatService
 
+# Routing decision (Phase 5):
+# Messages live at /chats/{chat_id}/messages, not /projects/{id}/chats/{id}/messages.
+# chat_id is globally unique and already encodes project ownership, so repeating
+# project_id in the path is redundant. Keep this flat structure through all future phases.
+#
+# Phase 13 note: POST /chats/{chat_id}/messages must become a StreamingResponse (SSE)
+# when answer generation is added. Do not change the URL — only the response type changes.
 router = APIRouter(tags=["chats"])
 
 
