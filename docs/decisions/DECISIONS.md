@@ -174,3 +174,27 @@ Use this format for future updates:
   This adds more schema surface area, but it keeps evaluation workflows isolated from customer conversation data and makes agent-testing features easier to evolve.
 - Affected paths:
   `supabase/migrations/20260311141000_phase_3b_notebooks.sql`, `supabase/seed.sql`, `packages/types/src/index.ts`
+
+## DEC-013: Phase 4 uses fake auth with a dev user header before real authentication
+- Date: 2026-03-12
+- Status: accepted
+- Context:
+  The API needs ownership-aware CRUD routes before authentication is designed and integrated.
+- Decision:
+  Use `x-dev-user-id` with a seeded demo user fallback so project, settings, file, and chat routes can enforce per-user access without introducing real auth yet.
+- Tradeoffs:
+  This is not production-safe, but it keeps product development moving and makes later auth replacement a narrower change.
+- Affected paths:
+  `apps/api/src/`, `.env.example`, `apps/api/README.md`
+
+## DEC-014: Project settings explicitly choose the answer model provider
+- Date: 2026-03-12
+- Status: accepted
+- Context:
+  The product needs a project-level switch between OpenAI and Google Gemini without forcing provider choice into application code defaults.
+- Decision:
+  Add `llm_provider` and `llm_model` to `project_settings`, defaulting to OpenAI but allowing `google_gemini` for later answer-generation work.
+- Tradeoffs:
+  This adds schema and API surface now, but it avoids a breaking settings redesign when model routing is implemented.
+- Affected paths:
+  `supabase/migrations/20260312103000_phase_5_project_chat_crud_and_llm_settings.sql`, `supabase/seed.sql`, `packages/types/src/index.ts`, `apps/api/src/`

@@ -38,6 +38,8 @@ insert into public.project_settings (
   id,
   project_id,
   embedding_model,
+  llm_provider,
+  llm_model,
   retrieval_strategy,
   chunks_per_search,
   final_context_size,
@@ -51,6 +53,8 @@ values (
   '20000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',
   'text-embedding-3-small',
+  'openai',
+  'gpt-4.1-mini',
   'hybrid',
   8,
   12,
@@ -63,6 +67,8 @@ values (
 on conflict (project_id) do update
 set
   embedding_model = excluded.embedding_model,
+  llm_provider = excluded.llm_provider,
+  llm_model = excluded.llm_model,
   retrieval_strategy = excluded.retrieval_strategy,
   chunks_per_search = excluded.chunks_per_search,
   final_context_size = excluded.final_context_size,

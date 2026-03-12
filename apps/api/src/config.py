@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     app_name: str = "AtlasRAG API"
     app_version: str = "0.1.0"
     app_env: str = "development"
+    dev_user_id: str = "00000000-0000-0000-0000-000000000001"
+    dev_user_email: str = "demo@atlasrag.local"
+    dev_user_display_name: str = "Demo User"
 
     supabase_url: str
     supabase_anon_key: SecretStr

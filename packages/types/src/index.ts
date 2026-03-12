@@ -10,6 +10,7 @@ export type ProcessingStatus =
   | "failed";
 
 export type SourceType = "file" | "url";
+export type LlmProvider = "openai" | "google_gemini";
 export type RetrievalStrategy =
   | "vector"               // basic cosine similarity on embeddings
   | "keyword"              // full-text search (tsvector / BM25-style)
@@ -31,6 +32,8 @@ export interface ProjectSettings {
   id: string;
   projectId: string;
   embeddingModel: string;
+  llmProvider: LlmProvider;
+  llmModel: string;
   retrievalStrategy: RetrievalStrategy;
   chunksPerSearch: number;
   finalContextSize: number;
