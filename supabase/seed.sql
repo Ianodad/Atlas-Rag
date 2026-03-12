@@ -207,3 +207,59 @@ set
   content = excluded.content,
   citations = excluded.citations,
   metadata = excluded.metadata;
+
+-- Notebooks seed (Phase 3B)
+insert into public.notebooks (id, project_id, title, description)
+values (
+  '70000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'Retrieval Quality Tests',
+  'Test queries to verify vector and hybrid search are returning the right chunks.'
+)
+on conflict (id) do update
+set
+  project_id  = excluded.project_id,
+  title       = excluded.title,
+  description = excluded.description;
+
+insert into public.notebook_cells (
+  id, notebook_id, cell_index, cell_type, input, output, status, executed_at
+)
+values
+(
+  '80000000-0000-0000-0000-000000000001',
+  '70000000-0000-0000-0000-000000000001',
+  0,
+  'markdown',
+  '{"text": "# Retrieval Quality Tests\nRun these cells to verify the retrieval pipeline is working correctly after any schema or config change."}'::jsonb,
+  '{}'::jsonb,
+  'idle',
+  null
+),
+(
+  '80000000-0000-0000-0000-000000000002',
+  '70000000-0000-0000-0000-000000000001',
+  1,
+  'query',
+  '{"query": "What is AtlasRAG?", "retrieval_strategy": "hybrid", "chunks_per_search": 4}'::jsonb,
+  '{}'::jsonb,
+  'idle',
+  null
+),
+(
+  '80000000-0000-0000-0000-000000000003',
+  '70000000-0000-0000-0000-000000000001',
+  2,
+  'comparison',
+  '{"query": "What is AtlasRAG?", "config_a": {"retrieval_strategy": "vector", "chunks_per_search": 4}, "config_b": {"retrieval_strategy": "keyword", "chunks_per_search": 4}}'::jsonb,
+  '{}'::jsonb,
+  'idle',
+  null
+)
+on conflict (notebook_id, cell_index) do update
+set
+  cell_type   = excluded.cell_type,
+  input       = excluded.input,
+  output      = excluded.output,
+  status      = excluded.status,
+  executed_at = excluded.executed_at;

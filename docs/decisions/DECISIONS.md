@@ -162,3 +162,15 @@ Use this format for future updates:
   This makes the first migration heavier, but it avoids a second schema rewrite when retrieval work starts.
 - Affected paths:
   `supabase/migrations/20260311140000_phase_3_initial_schema.sql`
+
+## DEC-012: Notebook execution history is stored separately from chats
+- Date: 2026-03-12
+- Status: accepted
+- Context:
+  Developer testing sessions for retrieval and agent experiments have a different lifecycle and purpose from user-facing chat history.
+- Decision:
+  Model notebooks and notebook cells as separate tables linked to projects, with cell input/output stored as JSONB and an execution status lifecycle independent of chats and messages.
+- Tradeoffs:
+  This adds more schema surface area, but it keeps evaluation workflows isolated from customer conversation data and makes agent-testing features easier to evolve.
+- Affected paths:
+  `supabase/migrations/20260311141000_phase_3b_notebooks.sql`, `supabase/seed.sql`, `packages/types/src/index.ts`

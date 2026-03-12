@@ -10,7 +10,12 @@ export type ProcessingStatus =
   | "failed";
 
 export type SourceType = "file" | "url";
-export type RetrievalStrategy = "hybrid" | "vector" | "keyword";
+export type RetrievalStrategy =
+  | "vector"               // basic cosine similarity on embeddings
+  | "keyword"              // full-text search (tsvector / BM25-style)
+  | "hybrid"               // vector + keyword merged with RRF
+  | "multi_query_vector"   // generate N query variants, run vector search for each, fuse results
+  | "multi_query_hybrid";  // generate N query variants, run hybrid search for each, fuse results
 export type MessageRole = "system" | "user" | "assistant";
 
 export interface Project {
@@ -92,4 +97,91 @@ export interface Message {
   citations: Citation[];
   metadata: Record<string, unknown>;
   createdAt: string;
+}
+
+// ─── Notebook types ──────────────────────────────────────────────────────────
+// Notebooks are a developer tool for testing retrieval and agent pipelines.
+// They are separate from chats (which are the user-facing conversation history).
+
+export type NotebookCellType = "query" | "agent_run" | "markdown" | "comparison";
+export type NotebookCellStatus = "idle" | "running" | "done" | "error";
+
+export interface Notebook {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Input shapes per cell type
+export interface QueryCellInput {
+  query: string;
+  retrievalStrategy?: RetrievalStrategy;
+  chunksPerSearch?: number;
+  similarityThreshold?: number;
+}
+
+export interface AgentRunCellInput {
+  query: string;
+  retrievalStrategy?: RetrievalStrategy;
+  chunksPerSearch?: number;
+}
+
+export interface ComparisonCellInput {
+  query: string;
+  configA: Partial<Pick<ProjectSettings, "retrievalStrategy" | "chunksPerSearch" | "vectorWeight" | "keywordWeight">>;
+  configB: Partial<Pick<ProjectSettings, "retrievalStrategy" | "chunksPerSearch" | "vectorWeight" | "keywordWeight">>;
+}
+
+export interface MarkdownCellInput {
+  text: string;
+}
+
+// Output shapes per cell type
+export interface ChunkResult {
+  id: string;
+  retrievalText: string;
+  score: number;
+  pageNumber: number | null;
+  documentId: string;
+  chunkIndex: number;
+}
+
+export interface QueryCellOutput {
+  chunks: ChunkResult[];
+  latencyMs: number;
+}
+
+export interface AgentStep {
+  step: string;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+}
+
+export interface AgentRunCellOutput {
+  answer: string;
+  citations: Citation[];
+  agentSteps: AgentStep[];
+  latencyMs: number;
+}
+
+export interface ComparisonCellOutput {
+  resultA: QueryCellOutput;
+  resultB: QueryCellOutput;
+}
+
+export interface NotebookCell {
+  id: string;
+  notebookId: string;
+  cellIndex: number;
+  cellType: NotebookCellType;
+  input: QueryCellInput | AgentRunCellInput | ComparisonCellInput | MarkdownCellInput | Record<string, unknown>;
+  output: QueryCellOutput | AgentRunCellOutput | ComparisonCellOutput | Record<string, unknown>;
+  status: NotebookCellStatus;
+  errorMessage: string | null;
+  executedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
