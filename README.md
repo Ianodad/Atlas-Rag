@@ -100,7 +100,20 @@ pnpm infra:logs
 pnpm infra:logs redis
 ```
 
-If you start the app processes manually, use the repo defaults:
+6. Start the current local stack with one command:
+
+```bash
+pnpm dev:all
+```
+
+That command:
+
+- starts local Redis
+- starts the FastAPI API on `8011`
+- starts the Next.js app on `3101`
+- stops the API child process when you exit
+
+If you start the app processes manually instead, use the repo defaults:
 
 ```bash
 pnpm --filter @atlas-rag/web dev
