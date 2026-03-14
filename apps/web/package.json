@@ -9,16 +9,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@atlas-rag/config": "workspace:*",
+    "@atlas-rag/types": "workspace:*",
     "next": "^16.1.6",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "@atlas-rag/config": "workspace:*",
-    "@atlas-rag/types": "workspace:*"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.9.2"
   }
 }
