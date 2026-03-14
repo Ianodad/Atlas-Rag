@@ -38,7 +38,6 @@ class ChatService:
                     "title": payload.title,
                 }
             )
-            .select("*")
         )
         return first_or_none(rows)
 
@@ -84,6 +83,5 @@ class ChatService:
                     "metadata": payload.metadata,
                 }
             )
-            .select("*")
         )
         return first_or_none(rows)

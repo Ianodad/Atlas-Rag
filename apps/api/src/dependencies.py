@@ -36,9 +36,8 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Unknown development user")
 
     if user is None:
-        user = execute_data(
-            client.table("users")
-            .upsert(
+        execute_data(
+            client.table("users").upsert(
                 {
                     "id": settings.dev_user_id,
                     "email": settings.dev_user_email,
@@ -46,7 +45,12 @@ def get_current_user(
                     "external_auth_id": "dev-demo-user",
                 }
             )
+        )
+        user = execute_data(
+            client.table("users")
             .select("*")
+            .eq("id", settings.dev_user_id)
+            .limit(1)
         )[0]
 
     return CurrentUser.model_validate(user)
@@ -54,8 +58,9 @@ def get_current_user(
 
 def get_project_service(
     client: Client = Depends(get_server_supabase_client),
+    settings: Settings = Depends(get_app_settings),
 ) -> ProjectService:
-    return ProjectService(client)
+    return ProjectService(client, settings)
 
 
 def get_chat_service(
