@@ -2,11 +2,11 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import type {
   Chat,
   ChatDetail,
-  Message,
   Project,
   ProjectDocument,
   ProjectSettings,
@@ -22,9 +22,12 @@ import { ConversationsList } from "../components/conversations-list";
 import { ChatInterface } from "../components/chat-interface";
 import { KnowledgeSidebar } from "../components/knowledge-sidebar";
 import { ProjectModal } from "../components/project-modal";
+import { DocumentModal } from "../components/document-modal";
 import { Icon } from "../components/icons";
 
 export default function HomePage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [view, setView] = useState<View>("projects");
@@ -36,6 +39,7 @@ export default function HomePage() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [activeChat, setActiveChat] = useState<ChatDetail | null>(null);
+  const [projectDetail, setProjectDetail] = useState<Project | null>(null);
   const [settings, setSettings] = useState<ProjectSettings | null>(null);
   const [settingsDraft, setSettingsDraft] = useState<ProjectSettings | null>(null);
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -47,39 +51,65 @@ export default function HomePage() {
   const [isBusy, setIsBusy] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
+  const [streamingStatus, setStreamingStatus] = useState("");
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
 
-  const activeProject = useMemo(
-    () => projects.find((p) => p.id === activeProjectId) ?? null,
-    [projects, activeProjectId],
-  );
+  const routeProjectId = useMemo(() => {
+    const parts = pathname.split("/").filter(Boolean);
+    if (parts[0] === "projects" && parts[1]) {
+      return decodeURIComponent(parts[1]);
+    }
+    return null;
+  }, [pathname]);
+
+  const activeProject = projectDetail ?? projects.find((project) => project.id === activeProjectId) ?? null;
 
   const filteredProjects = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return projects;
     return projects.filter(
-      (p) => p.name.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q),
+      (project) =>
+        project.name.toLowerCase().includes(q) ||
+        (project.description ?? "").toLowerCase().includes(q),
     );
   }, [projects, searchQuery]);
-
-  // ── Data fetchers ──────────────────────────────────────────────────────────
 
   async function loadProjects() {
     const next = await apiFetch<Project[]>("/projects");
     setProjects(next);
-    if (!activeProjectId && next[0]) setActiveProjectId(next[0].id);
-    if (activeProjectId && !next.some((p) => p.id === activeProjectId)) {
-      setActiveProjectId(next[0]?.id ?? null);
+
+    if (routeProjectId && next.some((project) => project.id === routeProjectId)) {
+      setActiveProjectId(routeProjectId);
+      return;
+    }
+
+    if (routeProjectId && !next.some((project) => project.id === routeProjectId)) {
+      setActiveProjectId(null);
+      setProjectDetail(null);
+      setActiveChatId(null);
+      setActiveChat(null);
+      setView("projects");
+      router.replace("/projects");
+      return;
+    }
+
+    if (activeProjectId && !next.some((project) => project.id === activeProjectId)) {
+      setActiveProjectId(null);
+      setProjectDetail(null);
       setActiveChatId(null);
       setActiveChat(null);
     }
   }
 
   async function loadProjectContext(projectId: string) {
-    const [docs, chatList, cfg] = await Promise.all([
+    const [project, docs, chatList, cfg] = await Promise.all([
+      apiFetch<Project>(`/projects/${projectId}`),
       apiFetch<ProjectDocument[]>(`/projects/${projectId}/files`),
       apiFetch<Chat[]>(`/projects/${projectId}/chats`),
       apiFetch<ProjectSettings>(`/projects/${projectId}/settings`),
     ]);
+    setProjectDetail(project);
     setDocuments(docs);
     setChats(chatList);
     setSettings(cfg);
@@ -91,8 +121,6 @@ export default function HomePage() {
     setActiveChat(chat);
   }
 
-  // ── Effects ────────────────────────────────────────────────────────────────
-
   useEffect(() => {
     void (async () => {
       try {
@@ -103,16 +131,32 @@ export default function HomePage() {
         setStatusMessage("Dashboard failed to load.");
       }
     })();
-  }, []);
+  }, [routeProjectId]);
+
+  useEffect(() => {
+    if (routeProjectId) {
+      setActiveProjectId(routeProjectId);
+      setView("detail");
+      return;
+    }
+
+    setActiveProjectId(null);
+    setProjectDetail(null);
+    setActiveChatId(null);
+    setActiveChat(null);
+    setView("projects");
+  }, [routeProjectId]);
 
   useEffect(() => {
     if (!activeProjectId) {
+      setProjectDetail(null);
       setDocuments([]);
       setChats([]);
       setSettings(null);
       setSettingsDraft(null);
       return;
     }
+
     void (async () => {
       try {
         setErrorMessage(null);
@@ -129,6 +173,7 @@ export default function HomePage() {
       setActiveChat(null);
       return;
     }
+
     void (async () => {
       try {
         await loadChat(activeChatId);
@@ -138,20 +183,19 @@ export default function HomePage() {
     })();
   }, [activeChatId]);
 
-  // 5-second polling while any document is being processed
   useEffect(() => {
-    if (!activeProjectId || !documents.some((d) => ACTIVE_STATUSES.has(d.processingStatus))) {
+    if (!activeProjectId || !documents.some((document) => ACTIVE_STATUSES.has(document.processingStatus))) {
       return;
     }
+
     const id = window.setInterval(() => {
       void loadProjectContext(activeProjectId).catch((err) => {
         setErrorMessage(err instanceof Error ? err.message : "Failed to refresh document statuses.");
       });
     }, 5000);
+
     return () => window.clearInterval(id);
   }, [activeProjectId, documents]);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
 
   async function handleCreateProject(name: string, description: string) {
     try {
@@ -161,8 +205,9 @@ export default function HomePage() {
         method: "POST",
         body: JSON.stringify({ name, description: description || null }),
       });
-      setProjects((cur) => [...cur, project]);
+      setProjects((current) => [...current, project]);
       setActiveProjectId(project.id);
+      setProjectDetail(project);
       setDocuments([]);
       setChats([]);
       setSettings(null);
@@ -172,6 +217,7 @@ export default function HomePage() {
       setView("detail");
       setShowProjectModal(false);
       setStatusMessage(`Created "${project.name}".`);
+      router.push(`/projects/${project.id}`);
       void loadProjects().catch(() => {});
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Failed to create project.");
@@ -211,26 +257,111 @@ export default function HomePage() {
     }
   }
 
+  async function handleDeleteProject(projectId: string) {
+    const project = projects.find((entry) => entry.id === projectId) ?? activeProject;
+    const label = project?.name ?? "this project";
+
+    if (!window.confirm(`Delete ${label}? This removes its chats and indexed sources.`)) {
+      return;
+    }
+
+    try {
+      await apiFetch<void>(`/projects/${projectId}`, { method: "DELETE" });
+      setProjects((current) => current.filter((entry) => entry.id !== projectId));
+
+      if (activeProjectId === projectId) {
+        setActiveProjectId(null);
+        setProjectDetail(null);
+        setActiveChatId(null);
+        setActiveChat(null);
+        setDocuments([]);
+        setChats([]);
+        setSettings(null);
+        setSettingsDraft(null);
+        setView("projects");
+        router.push("/projects");
+      }
+
+      setStatusMessage(`Deleted "${label}".`);
+      void loadProjects().catch(() => {});
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to delete project.");
+    }
+  }
+
   async function handleSendMessage() {
     if (!activeChatId || !draftMessage.trim()) return;
+    const content = draftMessage.trim();
+    setDraftMessage("");
+    setIsSendingMessage(true);
+    setStreamingContent("");
+    setStreamingStatus("Thinking...");
+    setErrorMessage(null);
+
     try {
-      setIsSendingMessage(true);
-      await apiFetch<Message>(`/chats/${activeChatId}/messages`, {
+      const response = await fetch(`/api/chats/${activeChatId}/messages`, {
         method: "POST",
-        body: JSON.stringify({
-          role: "user",
-          content: draftMessage.trim(),
-          citations: [],
-          metadata: { source: "dashboard-note" },
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "user", content, citations: [], metadata: {} }),
+        cache: "no-store",
       });
-      setDraftMessage("");
-      await loadChat(activeChatId);
-      setStatusMessage("Message saved.");
+
+      if (!response.ok || !response.body) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+
+        for (const block of blocks) {
+          const eventLine = block.split("\n").find((line) => line.startsWith("event:"));
+          const dataLine = block.split("\n").find((line) => line.startsWith("data:"));
+          if (!eventLine || !dataLine) continue;
+
+          const event = eventLine.slice("event:".length).trim();
+          const data = JSON.parse(dataLine.slice("data:".length).trim());
+
+          if (event === "status") {
+            setStreamingStatus(String(data.status ?? ""));
+          } else if (event === "token") {
+            setStreamingContent((prev) => prev + String(data.content ?? ""));
+          } else if (event === "error") {
+            setErrorMessage(String(data.message ?? "Unknown error"));
+          } else if (event === "done") {
+            await loadChat(activeChatId);
+            setStatusMessage("Answer complete.");
+            // Auto-rename on first message
+            const isFirstMessage = !activeChat?.messages?.length;
+            if (isFirstMessage) {
+              const title = content.length > 50 ? content.slice(0, 50).trimEnd() + "…" : content;
+              try {
+                await apiFetch<Chat>(`/chats/${activeChatId}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ title }),
+                });
+                if (activeProjectId) await loadProjectContext(activeProjectId);
+              } catch {
+                // non-fatal, title stays as default
+              }
+            }
+          }
+        }
+      }
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Failed to save message.");
+      setErrorMessage(err instanceof Error ? err.message : "Failed to send message.");
     } finally {
       setIsSendingMessage(false);
+      setStreamingContent("");
+      setStreamingStatus("");
     }
   }
 
@@ -346,8 +477,6 @@ export default function HomePage() {
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <>
       <div className="flex min-h-screen">
@@ -355,27 +484,28 @@ export default function HomePage() {
           collapsed={sidebarCollapsed}
           projects={projects}
           activeProjectId={activeProjectId}
-          onToggle={() => setSidebarCollapsed((c) => !c)}
+          onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
           onProject={(id) => {
             setActiveProjectId(id);
             setActiveChatId(null);
             setView("detail");
+            router.push(`/projects/${id}`);
           }}
-          onOpenProjects={() => setView("projects")}
+          onOpenProjects={() => {
+            setView("projects");
+            router.push("/projects");
+          }}
           onNewProject={() => setShowProjectModal(true)}
         />
 
         <main className="flex flex-col flex-1 min-w-0 p-4 gap-[14px]">
-          {/* Topbar */}
           <div className="flex items-center justify-between gap-3 px-[18px] py-[14px] border border-neon-border rounded-[18px] bg-[rgba(17,24,39,0.72)] backdrop-blur-[10px]">
             <div>
               <strong className="block text-[0.98rem] text-neon-text">AtlasRAG Dashboard</strong>
               <span className="text-neon-muted text-[0.92rem]">{statusMessage}</span>
             </div>
             <div className="flex items-center gap-3">
-              {errorMessage && (
-                <span className="text-[#fca5a5] text-sm">{errorMessage}</span>
-              )}
+              {errorMessage && <span className="text-[#fca5a5] text-sm">{errorMessage}</span>}
               {isBusy && (
                 <span className="inline-flex items-center gap-1 text-neon-accent text-sm">
                   <Icon name="loader" />
@@ -385,9 +515,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Content row */}
           <div className="flex gap-4 min-h-0 flex-1">
-            {/* Main panel */}
             {view === "projects" ? (
               <ProjectsGrid
                 projects={filteredProjects}
@@ -396,8 +524,10 @@ export default function HomePage() {
                 onProject={(id) => {
                   setActiveProjectId(id);
                   setView("detail");
+                  router.push(`/projects/${id}`);
                 }}
                 onNewProject={() => setShowProjectModal(true)}
+                onDeleteProject={(id) => void handleDeleteProject(id)}
               />
             ) : activeProject ? (
               view === "detail" ? (
@@ -410,6 +540,7 @@ export default function HomePage() {
                     setView("chat");
                   }}
                   onDeleteChat={(id) => void handleDeleteChat(id)}
+                  onDeleteProject={() => void handleDeleteProject(activeProject.id)}
                 />
               ) : (
                 <ChatInterface
@@ -419,6 +550,8 @@ export default function HomePage() {
                   onBack={() => setView("detail")}
                   onSend={() => void handleSendMessage()}
                   isSending={isSendingMessage}
+                  streamingContent={streamingContent}
+                  streamingStatus={streamingStatus}
                 />
               )
             ) : (
@@ -435,7 +568,6 @@ export default function HomePage() {
               </section>
             )}
 
-            {/* Knowledge sidebar — only when a project is active */}
             {activeProject && (
               <KnowledgeSidebar
                 activeTab={knowledgeTab}
@@ -447,6 +579,7 @@ export default function HomePage() {
                 onFilePicker={() => fileInputRef.current?.click()}
                 onAddUrl={handleAddUrl}
                 onDeleteDocument={(id) => void handleDeleteDocument(id)}
+                onViewDocument={(id) => setSelectedDocumentId(id)}
                 settings={settings}
                 settingsDraft={settingsDraft}
                 setSettingsDraft={setSettingsDraft}
@@ -458,10 +591,8 @@ export default function HomePage() {
         </main>
       </div>
 
-      {/* Hidden file input */}
       <input ref={fileInputRef} type="file" hidden onChange={handleSelectedFile} />
 
-      {/* New project modal */}
       {showProjectModal && (
         <ProjectModal
           onClose={() => setShowProjectModal(false)}
@@ -470,6 +601,16 @@ export default function HomePage() {
           errorMessage={errorMessage}
         />
       )}
+
+      {selectedDocumentId && (() => {
+        const selectedDocument = documents.find((d) => d.id === selectedDocumentId) ?? null;
+        return selectedDocument ? (
+          <DocumentModal
+            doc={selectedDocument}
+            onClose={() => setSelectedDocumentId(null)}
+          />
+        ) : null;
+      })()}
     </>
   );
 }

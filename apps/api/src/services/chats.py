@@ -2,7 +2,7 @@ from typing import Any
 
 from supabase import Client
 
-from ..schemas.chats import ChatCreate, MessageCreate
+from ..schemas.chats import ChatCreate, ChatRename, MessageCreate
 from .common import execute_data, fetch_project, first_or_none
 
 
@@ -55,6 +55,15 @@ class ChatService:
         chat["messages"] = sorted(chat.get("messages", []), key=lambda message: message["created_at"])
         chat.pop("projects", None)
         return chat
+
+    def rename_chat(self, chat_id: str, user_id: str, payload: ChatRename) -> dict[str, Any] | None:
+        chat = self.get_chat(chat_id, user_id)
+        if chat is None:
+            return None
+        rows = execute_data(
+            self.client.table("chats").update({"title": payload.title}).eq("id", chat_id)
+        )
+        return first_or_none(rows) or chat
 
     def delete_chat(self, chat_id: str, user_id: str) -> bool:
         chat = self.get_chat(chat_id, user_id)

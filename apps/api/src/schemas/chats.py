@@ -8,6 +8,10 @@ class ChatCreate(ApiModel):
     title: str
 
 
+class ChatRename(ApiModel):
+    title: str
+
+
 class MessageCreate(ApiModel):
     role: Literal["system", "user", "assistant"]
     content: str

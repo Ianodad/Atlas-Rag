@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 import re
 from pathlib import PurePosixPath
 from typing import Any
@@ -16,12 +17,27 @@ from ..schemas.projects import (
     ProjectUrlCreate,
 )
 from .common import execute_data, fetch_project, first_or_none
+from .jobs import DocumentQueueError, DocumentQueueService
+
+
+class DocumentEnqueueError(RuntimeError):
+    pass
 
 
 class ProjectService:
-    def __init__(self, client: Client, settings: Settings | None = None):
+    def __init__(
+        self,
+        client: Client,
+        settings: Settings | None = None,
+        queue_service: DocumentQueueService | None = None,
+    ):
         self.client = client
         self.settings = settings or get_settings()
+        self.queue_service = queue_service or DocumentQueueService(self.settings)
+
+    @staticmethod
+    def _timestamp() -> str:
+        return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
     @staticmethod
     def _sanitize_filename(filename: str) -> str:
@@ -40,14 +56,67 @@ class ProjectService:
     ) -> dict[str, Any]:
         details: dict[str, Any] = {
             "phase": "queued",
-            "queueStatus": "pending-phase-7-worker",
+            "queueStatus": "pending-enqueue",
             "source": source,
+            "fakeProcessing": True,
         }
         if size_bytes is not None:
             details["sizeBytes"] = size_bytes
         if extra:
             details.update(extra)
         return details
+
+    def _update_document(
+        self,
+        document_id: str,
+        values: dict[str, Any],
+    ) -> dict[str, Any]:
+        rows = execute_data(
+            self.client.table("project_documents")
+            .update(values)
+            .eq("id", document_id)
+        )
+        if not rows:
+            raise RuntimeError(f"Document {document_id} disappeared during queue lifecycle")
+        return rows[0]
+
+    def _enqueue_document(self, document: dict[str, Any]) -> dict[str, Any]:
+        current_details = dict(document.get("processing_details") or {})
+
+        try:
+            task_id = self.queue_service.enqueue_process_document(document["id"])
+        except DocumentQueueError as exc:
+            failed_details = {
+                **current_details,
+                "phase": "queue_failed",
+                "queueStatus": "enqueue_failed",
+                "failedAt": self._timestamp(),
+                "error": str(exc),
+            }
+            self._update_document(
+                document["id"],
+                {
+                    "processing_status": "failed",
+                    "processing_details": failed_details,
+                },
+            )
+            raise DocumentEnqueueError(str(exc)) from exc
+
+        queued_details = {
+            **current_details,
+            "phase": "queued",
+            "queueStatus": "queued",
+            "taskId": task_id,
+            "enqueuedAt": self._timestamp(),
+        }
+        return self._update_document(
+            document["id"],
+            {
+                "task_id": task_id,
+                "processing_status": "queued",
+                "processing_details": queued_details,
+            },
+        )
 
     def list_projects(self, user_id: str) -> list[dict[str, Any]]:
         return execute_data(
@@ -193,6 +262,7 @@ class ProjectService:
             .insert(
                 {
                     "project_id": project_id,
+                    "task_id": None,
                     "filename": payload.filename,
                     "mime_type": payload.mime_type,
                     "storage_bucket": payload.storage_bucket,
@@ -207,7 +277,7 @@ class ProjectService:
                 }
             )
         )
-        return rows[0]
+        return self._enqueue_document(rows[0])
 
     def delete_project_document(self, project_id: str, file_id: str, user_id: str) -> bool:
         document = self.get_project_document(project_id, file_id, user_id)
@@ -223,6 +293,25 @@ class ProjectService:
 
         self.client.table("project_documents").delete().eq("project_id", project_id).eq("id", file_id).execute()
         return True
+
+    def reprocess_document(self, project_id: str, file_id: str, user_id: str) -> dict[str, Any] | None:
+        document = self.get_project_document(project_id, file_id, user_id)
+        if document is None:
+            return None
+        # Reset status so the worker processes it fresh
+        self.client.table("document_chunks").delete().eq("document_id", file_id).execute()
+        reset = self._update_document(
+            file_id,
+            {
+                "processing_status": "queued",
+                "processing_details": self._queued_processing_details(
+                    source=document.get("source_type", "file"),
+                    extra={"reprocessedAt": self._timestamp()},
+                ),
+                "task_id": None,
+            },
+        )
+        return self._enqueue_document(reset)
 
     def create_project_url_document(
         self,
@@ -242,6 +331,7 @@ class ProjectService:
             .insert(
                 {
                     "project_id": project_id,
+                    "task_id": None,
                     "filename": filename,
                     "source_type": "url",
                     "source_url": str(payload.url),
@@ -254,4 +344,4 @@ class ProjectService:
                 }
             )
         )
-        return rows[0]
+        return self._enqueue_document(rows[0])
