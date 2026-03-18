@@ -2,7 +2,7 @@ from typing import Any
 
 from supabase import Client
 
-from ..schemas.chats import ChatCreate, ChatRename, MessageCreate
+from ..schemas.chats import ChatCreate, ChatRename, MessageCreate, MessageFeedbackCreate
 from .common import execute_data, fetch_project, first_or_none
 
 
@@ -44,7 +44,7 @@ class ChatService:
     def get_chat(self, chat_id: str, user_id: str) -> dict[str, Any] | None:
         rows = execute_data(
             self.client.table("chats")
-            .select("*, projects!inner(user_id), messages(*)")
+            .select("*, projects!inner(user_id), messages(*, message_feedback(*))")
             .eq("id", chat_id)
             .eq("projects.user_id", user_id)
             .limit(1)
@@ -53,6 +53,9 @@ class ChatService:
         if chat is None:
             return None
         chat["messages"] = sorted(chat.get("messages", []), key=lambda message: message["created_at"])
+        for msg in chat.get("messages", []):
+            feedback_list = msg.pop("message_feedback", [])
+            msg["feedback"] = feedback_list[0] if feedback_list else None
         chat.pop("projects", None)
         return chat
 
@@ -94,3 +97,26 @@ class ChatService:
             )
         )
         return first_or_none(rows)
+
+    def upsert_feedback(self, chat_id: str, message_id: str, user_id: str, payload: MessageFeedbackCreate) -> dict[str, Any] | None:
+        chat = self.get_chat(chat_id, user_id)
+        if chat is None:
+            return None
+        if not any(m["id"] == message_id for m in chat.get("messages", [])):
+            return None
+        rows = execute_data(
+            self.client.table("message_feedback").upsert(
+                {"message_id": message_id, "rating": payload.rating, "comment": payload.comment},
+                on_conflict="message_id",
+            )
+        )
+        return first_or_none(rows)
+
+    def delete_feedback(self, chat_id: str, message_id: str, user_id: str) -> bool:
+        chat = self.get_chat(chat_id, user_id)
+        if chat is None:
+            return False
+        if not any(m["id"] == message_id for m in chat.get("messages", [])):
+            return False
+        self.client.table("message_feedback").delete().eq("message_id", message_id).execute()
+        return True

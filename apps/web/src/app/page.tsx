@@ -365,6 +365,20 @@ export default function HomePage() {
     }
   }
 
+  async function handleFeedback(messageId: string, rating: "thumbs_up" | "thumbs_down") {
+    if (!activeChatId) return;
+    const msg = activeChat?.messages.find((m) => m.id === messageId);
+    if (msg?.feedback?.rating === rating) {
+      await apiFetch<void>(`/chats/${activeChatId}/messages/${messageId}/feedback`, { method: "DELETE" });
+    } else {
+      await apiFetch(`/chats/${activeChatId}/messages/${messageId}/feedback`, {
+        method: "POST",
+        body: JSON.stringify({ rating }),
+      });
+    }
+    await loadChat(activeChatId);
+  }
+
   async function handleDeleteDocument(documentId: string) {
     if (!activeProjectId) return;
     try {
@@ -552,6 +566,7 @@ export default function HomePage() {
                   isSending={isSendingMessage}
                   streamingContent={streamingContent}
                   streamingStatus={streamingStatus}
+                  onFeedback={(id, rating) => void handleFeedback(id, rating)}
                 />
               )
             ) : (

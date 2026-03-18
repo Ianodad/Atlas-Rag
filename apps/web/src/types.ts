@@ -1,8 +1,10 @@
 export type Project = {
   id: string;
+  userId?: string;
   name: string;
   description: string | null;
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type Chat = {
@@ -16,6 +18,19 @@ export type Chat = {
 export type Citation = {
   filename?: string;
   page?: number | null;
+  source_type?: "file" | "url";
+  source_url?: string | null;
+  document_id?: string | null;
+  chunk_index?: number | null;
+};
+
+export type MessageFeedback = {
+  id: string;
+  messageId: string;
+  rating: "thumbs_up" | "thumbs_down";
+  comment?: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Message = {
@@ -25,6 +40,7 @@ export type Message = {
   content: string;
   citations: Citation[];
   createdAt: string;
+  feedback?: MessageFeedback | null;
 };
 
 export type ChatDetail = Chat & {
@@ -34,6 +50,7 @@ export type ChatDetail = Chat & {
 export type ProjectDocument = {
   id: string;
   projectId: string;
+  taskId: string | null;
   filename: string;
   mimeType: string | null;
   storageBucket: string | null;
@@ -86,5 +103,6 @@ export const ACTIVE_STATUSES = new Set([
   "partitioning",
   "chunking",
   "summarising",
+  "embedding",
   "vectorization",
 ]);

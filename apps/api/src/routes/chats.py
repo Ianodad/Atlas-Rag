@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 
 from ..dependencies import get_chat_service, get_current_user, get_rag_service
 from ..schemas.auth import CurrentUser
-from ..schemas.chats import ChatCreate, ChatDetailResponse, ChatRename, ChatResponse, MessageCreate, MessageResponse
+from ..schemas.chats import ChatCreate, ChatDetailResponse, ChatRename, ChatResponse, MessageCreate, MessageFeedbackCreate, MessageFeedbackResponse, MessageResponse
 from ..services.chats import ChatService
 from ..services.rag import RagService
 
@@ -130,3 +130,36 @@ async def create_chat_message(
             rag_service.save_message(chat_id, "assistant", full_answer, citations)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post(
+    "/chats/{chat_id}/messages/{message_id}/feedback",
+    response_model=MessageFeedbackResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def upsert_message_feedback(
+    chat_id: str,
+    message_id: str,
+    payload: MessageFeedbackCreate,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+) -> MessageFeedbackResponse:
+    result = service.upsert_feedback(chat_id, message_id, current_user.id, payload)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return result
+
+
+@router.delete(
+    "/chats/{chat_id}/messages/{message_id}/feedback",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_message_feedback(
+    chat_id: str,
+    message_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+) -> None:
+    deleted = service.delete_feedback(chat_id, message_id, current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Feedback not found")
