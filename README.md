@@ -66,6 +66,14 @@ This is the simpler build path because the project no longer has to run and main
 4. Install Python 3.12 and `uv`.
 5. Create a Supabase project.
 6. Copy `.env.example` to `.env` and fill in the Supabase values.
+7. Add your hosted Unstructured API credentials to `.env`:
+
+```bash
+UNSTRUCTURED_API_KEY=replace-me
+UNSTRUCTURED_API_URL=https://api.unstructuredapp.io/general/v0/general
+UNSTRUCTURED_SSL_VERIFY=true
+UNSTRUCTURED_CA_BUNDLE=
+```
 
 ## Quick Start
 
@@ -75,32 +83,44 @@ This is the simpler build path because the project no longer has to run and main
 pnpm install
 ```
 
-2. Start local Redis:
+2. Install Python dependencies for the API and worker:
+
+```bash
+cd apps/api && uv sync
+cd ../worker && uv sync
+cd ../..
+```
+
+The worker uses the hosted Unstructured Partition API for:
+`pdf`, `docx`, `pptx`, `md`, `txt`, and `html/url`.
+That avoids local OCR/inference dependencies such as `unstructured-inference`, `torch`, and CUDA downloads.
+
+3. Start local Redis:
 
 ```bash
 pnpm infra:up
 ```
 
-3. Check local service status:
+4. Check local service status:
 
 ```bash
 pnpm infra:status
 ```
 
-4. Stop local Redis when finished:
+5. Stop local Redis when finished:
 
 ```bash
 pnpm infra:down
 ```
 
-5. Follow logs:
+6. Follow logs:
 
 ```bash
 pnpm infra:logs
 pnpm infra:logs redis
 ```
 
-6. Start the current local stack with one command:
+7. Start the current local stack with one command:
 
 ```bash
 pnpm dev:all
@@ -110,14 +130,21 @@ That command:
 
 - starts local Redis
 - starts the FastAPI API on `8011`
+- starts the Celery worker from `apps/worker`
 - starts the Next.js app on `3101`
-- stops the API child process when you exit
+- stops the API and worker child processes when you exit
 
 If you start the app processes manually instead, use the repo defaults:
 
 ```bash
 pnpm --filter @atlas-rag/web dev
 uvicorn apps.api.src.main:app --reload --port 8011
+```
+
+For the worker:
+
+```bash
+pnpm dev:worker
 ```
 
 ## What Runs Where
@@ -194,6 +221,7 @@ pnpm infra:logs redis
 Expected outcome:
 
 - Redis is healthy
+- the worker is connected to Redis and consuming the `documents` queue
 - Supabase project is reachable
 - Supabase credentials are configured locally
 
@@ -219,6 +247,15 @@ Check:
 ### Vector search is unavailable
 
 Enable the `vector` extension in the Supabase dashboard before implementing retrieval features.
+
+### Document partitioning fails locally
+
+Check:
+
+- `apps/worker` dependencies were installed with `uv sync`
+- `UNSTRUCTURED_API_KEY` is present in `.env`
+- if your network injects a custom/self-signed TLS root, set `UNSTRUCTURED_CA_BUNDLE` to its PEM bundle
+- the worker is running via `pnpm dev:worker` or `pnpm dev:all`
 
 ### Storage bucket is missing
 

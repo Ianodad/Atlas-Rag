@@ -4,33 +4,27 @@ from typing import Literal
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_UNSTRUCTURED_API_URL = "https://api.unstructuredapp.io/general/v0/general"
+
 
 class Settings(BaseSettings):
-    app_name: str = "AtlasRAG API"
-    app_version: str = "0.1.0"
     app_env: str = "development"
-    dev_user_id: str = "00000000-0000-0000-0000-000000000001"
-    dev_user_email: str = "demo@atlasrag.local"
-    dev_user_display_name: str = "Demo User"
-
-    supabase_url: str
-    supabase_anon_key: SecretStr
-    supabase_service_role_key: SecretStr
-    supabase_db_url: SecretStr | None = None
-    supabase_server_key_source: Literal["service_role", "anon"] = "service_role"
-
     redis_host: str = "127.0.0.1"
     redis_port: int = 6379
     worker_document_queue: str = "documents"
     worker_process_document_task: str = "atlas_rag.process_document"
-    storage_bucket_documents: str = "documents"
+    worker_fake_processing_seconds: int = 3
+
+    supabase_url: str
+    supabase_anon_key: SecretStr
+    supabase_service_role_key: SecretStr
+    supabase_server_key_source: Literal["service_role", "anon"] = "service_role"
     openai_api_key: SecretStr | None = None
     google_gemini_api_key: SecretStr | None = None
-    scrapingbee_api_key: SecretStr | None = None
-    cors_allowed_origins: list[str] = [
-        "http://127.0.0.1:3101",
-        "http://localhost:3101",
-    ]
+    unstructured_api_key: SecretStr | None = None
+    unstructured_api_url: str = DEFAULT_UNSTRUCTURED_API_URL
+    unstructured_ssl_verify: bool = True
+    unstructured_ca_bundle: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

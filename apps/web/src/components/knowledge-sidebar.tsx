@@ -41,6 +41,7 @@ function SliderField(props: {
 function DocRow(props: {
   doc: ProjectDocument;
   onDelete: (id: string) => void;
+  onView: (id: string) => void;
 }) {
   const { doc } = props;
 
@@ -52,7 +53,12 @@ function DocRow(props: {
         : "bg-[rgba(167,139,250,0.13)] border-[rgba(167,139,250,0.24)] text-neon-purple";
 
   return (
-    <div className="group grid items-center gap-2 px-4 py-[14px] rounded-[18px] border border-neon-border bg-white/[0.02]"
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => props.onView(doc.id)}
+      onKeyDown={(e) => e.key === "Enter" && props.onView(doc.id)}
+      className="group grid items-center gap-2 px-4 py-[14px] rounded-[18px] border border-neon-border bg-white/[0.02] cursor-pointer hover:bg-white/[0.04] hover:border-[rgba(167,139,250,0.3)] transition-[140ms]"
       style={{ gridTemplateColumns: "auto 1fr auto auto" }}
     >
       <div className="inline-flex items-center justify-center w-11 h-11 shrink-0 rounded-[16px] bg-white/[0.04] border border-neon-border text-neon-accent">
@@ -70,7 +76,7 @@ function DocRow(props: {
         {doc.processingStatus}
       </span>
       <button
-        onClick={() => props.onDelete(doc.id)}
+        onClick={(e) => { e.stopPropagation(); props.onDelete(doc.id); }}
         aria-label="Delete document"
         className="inline-flex items-center justify-center w-[38px] h-[38px] rounded-xl border border-neon-border bg-white/[0.02] text-neon-muted opacity-0 group-hover:opacity-100 hover:text-neon-error hover:border-[rgba(239,68,68,0.35)] hover:bg-[rgba(239,68,68,0.08)] transition-[140ms]"
       >
@@ -90,6 +96,7 @@ export function KnowledgeSidebar(props: {
   onFilePicker: () => void;
   onAddUrl: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteDocument: (documentId: string) => void;
+  onViewDocument: (documentId: string) => void;
   settings: ProjectSettings | null;
   settingsDraft: ProjectSettings | null;
   setSettingsDraft: (draft: ProjectSettings | null) => void;
@@ -196,7 +203,12 @@ export function KnowledgeSidebar(props: {
                     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
                   )
                   .map((doc) => (
-                    <DocRow key={doc.id} doc={doc} onDelete={props.onDeleteDocument} />
+                    <DocRow
+                        key={doc.id}
+                        doc={doc}
+                        onDelete={props.onDeleteDocument}
+                        onView={props.onViewDocument}
+                      />
                   ))
               )}
             </div>

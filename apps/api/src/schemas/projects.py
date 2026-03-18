@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, HttpUrl
 from typing import Literal
 
 from .base import ApiModel
@@ -34,6 +34,9 @@ class ProjectSettingsResponse(ApiModel):
     vector_weight: float
     keyword_weight: float
     system_prompt: str | None
+    reranking_enabled: bool = False
+    reranking_model: str | None = None
+    agent_type: Literal["simple_agent", "supervisor_agent"] = "simple_agent"
     created_at: str
     updated_at: str
 
@@ -50,11 +53,15 @@ class ProjectSettingsUpdate(ApiModel):
     vector_weight: float | None = None
     keyword_weight: float | None = None
     system_prompt: str | None = None
+    reranking_enabled: bool | None = None
+    reranking_model: str | None = None
+    agent_type: Literal["simple_agent", "supervisor_agent"] | None = None
 
 
 class ProjectDocumentResponse(ApiModel):
     id: str
     project_id: str
+    task_id: str | None
     filename: str
     mime_type: str | None
     storage_bucket: str | None
@@ -67,3 +74,30 @@ class ProjectDocumentResponse(ApiModel):
     metadata: dict[str, Any]
     created_at: str
     updated_at: str
+
+
+class ProjectFileUploadUrlCreate(ApiModel):
+    filename: str = Field(min_length=1, max_length=500)
+    mime_type: str | None = Field(default=None, max_length=255)
+    size_bytes: int | None = Field(default=None, ge=0)
+
+
+class ProjectFileUploadUrlResponse(ApiModel):
+    upload_url: str
+    storage_bucket: str
+    storage_path: str
+    token: str
+
+
+class ProjectFileConfirm(ApiModel):
+    filename: str = Field(min_length=1, max_length=500)
+    mime_type: str | None = Field(default=None, max_length=255)
+    storage_bucket: str = Field(min_length=1, max_length=255)
+    storage_path: str = Field(min_length=1, max_length=1024)
+    size_bytes: int | None = Field(default=None, ge=0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectUrlCreate(ApiModel):
+    url: HttpUrl
+    title: str | None = Field(default=None, min_length=1, max_length=500)

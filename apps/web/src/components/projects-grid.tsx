@@ -9,6 +9,7 @@ export function ProjectsGrid(props: {
   setQuery: (value: string) => void;
   onProject: (projectId: string) => void;
   onNewProject: () => void;
+  onDeleteProject: (projectId: string) => void;
 }) {
   return (
     <section className="flex-1 min-w-0 overflow-auto border border-neon-border rounded-[24px] bg-[rgba(17,24,39,0.78)] shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
@@ -51,19 +52,32 @@ export function ProjectsGrid(props: {
         {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {props.projects.map((project) => (
-            <button
+            <div
               key={project.id}
-              onClick={() => props.onProject(project.id)}
               className="flex flex-col items-start gap-4 p-[22px] rounded-[22px] border border-neon-border bg-white/[0.02] text-left text-neon-text hover:border-[rgba(250,204,21,0.35)] hover:bg-[rgba(250,204,21,0.05)] transition-[140ms]"
             >
-              <div className="inline-flex items-center justify-center w-11 h-11 rounded-[16px] bg-white/[0.04] border border-neon-border text-neon-accent">
-                <Icon name="briefcase" />
+              <div className="flex items-start justify-between w-full gap-3">
+                <div className="inline-flex items-center justify-center w-11 h-11 rounded-[16px] bg-white/[0.04] border border-neon-border text-neon-accent">
+                  <Icon name="briefcase" />
+                </div>
+                <button
+                  onClick={() => props.onDeleteProject(project.id)}
+                  aria-label={`Delete ${project.name}`}
+                  className="inline-flex items-center justify-center w-[38px] h-[38px] rounded-xl border border-neon-border bg-white/[0.02] text-neon-muted hover:text-neon-error hover:border-[rgba(239,68,68,0.35)] hover:bg-[rgba(239,68,68,0.08)] transition-[140ms]"
+                >
+                  <Icon name="trash" />
+                </button>
               </div>
-              <strong className="text-[1.02rem]">{project.name}</strong>
-              <p className="m-0 text-neon-muted text-sm leading-[1.55]">
-                {project.description || "No description yet."}
-              </p>
-            </button>
+              <button
+                onClick={() => props.onProject(project.id)}
+                className="flex flex-col items-start gap-4 p-0 bg-transparent border-0 text-left text-inherit w-full"
+              >
+                <strong className="text-[1.02rem]">{project.name}</strong>
+                <p className="m-0 text-neon-muted text-sm leading-[1.55]">
+                  {project.description || "No description yet."}
+                </p>
+              </button>
+            </div>
           ))}
         </div>
       </div>

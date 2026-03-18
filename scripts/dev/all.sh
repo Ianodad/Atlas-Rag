@@ -4,11 +4,8 @@ set -eu
 PRESET_API_PORT="${API_PORT:-}"
 PRESET_WEB_PORT="${WEB_PORT:-}"
 
-if [ -f .env ]; then
-  set -a
-  . ./.env
-  set +a
-fi
+. ./scripts/dev/load-env.sh
+load_env_file ./.env
 
 if [ -n "$PRESET_API_PORT" ]; then
   API_PORT="$PRESET_API_PORT"
@@ -25,6 +22,9 @@ cleanup() {
   if [ "${api_pid:-}" ]; then
     kill "$api_pid" 2>/dev/null || true
   fi
+  if [ "${worker_pid:-}" ]; then
+    kill "$worker_pid" 2>/dev/null || true
+  fi
 }
 
 trap cleanup INT TERM EXIT
@@ -36,5 +36,11 @@ sh scripts/dev/up.sh
   uv run uvicorn src.main:app --reload --port "$API_PORT"
 ) &
 api_pid=$!
+
+(
+  cd apps/worker
+  uv run python -m src.worker
+) &
+worker_pid=$!
 
 pnpm --filter @atlas-rag/web exec next dev --port "$WEB_PORT"

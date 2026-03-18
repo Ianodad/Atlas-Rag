@@ -3,12 +3,24 @@ import time
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+from .config import get_settings
 
 logger = logging.getLogger("atlasrag.api")
 
 
 def register_middleware(app: FastAPI) -> None:
+    settings = get_settings()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     @app.middleware("http")
     async def request_context_middleware(request: Request, call_next):
         request_id = str(uuid4())
@@ -17,7 +29,7 @@ def register_middleware(app: FastAPI) -> None:
 
         try:
             response = await call_next(request)
-        except Exception:  # pragma: no cover - defensive fallback
+        except Exception as exc:  # pragma: no cover - defensive fallback
             logger.exception(
                 "Unhandled request error",
                 extra={
@@ -29,7 +41,7 @@ def register_middleware(app: FastAPI) -> None:
             return JSONResponse(
                 status_code=500,
                 content={
-                    "detail": "Internal server error",
+                    "detail": str(exc) if settings.app_env == "development" else "Internal server error",
                     "requestId": request_id,
                 },
             )

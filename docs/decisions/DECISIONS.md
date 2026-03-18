@@ -198,3 +198,27 @@ Use this format for future updates:
   This adds schema and API surface now, but it avoids a breaking settings redesign when model routing is implemented.
 - Affected paths:
   `supabase/migrations/20260312103000_phase_5_project_chat_crud_and_llm_settings.sql`, `supabase/seed.sql`, `packages/types/src/index.ts`, `apps/api/src/`
+
+## DEC-015: Worker-side document partitioning depends on unstructured native tooling
+- Date: 2026-03-16
+- Status: superseded
+- Context:
+  The worker previously used local `unstructured` parsing for PDFs and Office documents.
+- Decision:
+  Superseded by DEC-016.
+- Tradeoffs:
+  The local approach reduced external dependencies, but it still left document parsing quality and setup behavior tied to each machine.
+- Affected paths:
+  `apps/worker/`, `scripts/dev/all.sh`, `infra/docker/worker.Dockerfile`, `README.md`
+
+## DEC-016: Worker-side document partitioning uses the hosted Unstructured API
+- Date: 2026-03-16
+- Status: accepted
+- Context:
+  The worker needs reliable document partitioning without pulling local OCR and inference dependencies such as `unstructured-inference`, `torch`, or CUDA libraries.
+- Decision:
+  Keep the worker pipeline in `apps/worker`, but replace local partitioners with `unstructured.partition.api.partition_via_api`. Require `UNSTRUCTURED_API_KEY` for hosted parsing and allow `UNSTRUCTURED_API_URL` as an optional override for non-default endpoints.
+- Tradeoffs:
+  This removes heavyweight local dependencies and makes parsing behavior more consistent across environments, but it introduces an external API dependency, network latency, and usage-based cost.
+- Affected paths:
+  `apps/worker/`, `.env.example`, `.env`, `infra/docker/worker.Dockerfile`, `README.md`

@@ -1,3 +1,5 @@
 # Dockerfiles
 
-Reserved for service Dockerfiles and container build assets.
+Container build assets for local services.
+
+- `worker.Dockerfile`: Python worker image for the hosted Unstructured API worker

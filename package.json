@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:all": "sh scripts/dev/all.sh",
+    "dev:worker": "cd apps/worker && uv run python -m src.worker",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

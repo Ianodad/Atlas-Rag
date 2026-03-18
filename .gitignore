@@ -20,4 +20,16 @@ __pycache__
 *.log
 .DS_Store
 
+# Claude session data
+.claude/
+
+# Accidental nested app dirs (created by agents running in wrong cwd)
+apps/*/apps/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Supabase temp files
+supabase/.temp/
+
 MULTIMODAL_RAG_MONOREPO_REVERSE_ENGINEERING_PLAN

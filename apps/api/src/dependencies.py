@@ -5,7 +5,9 @@ from .config import Settings, get_settings
 from .schemas.auth import CurrentUser
 from .services.chats import ChatService
 from .services.common import execute_data, first_or_none
+from .services.jobs import DocumentQueueService
 from .services.projects import ProjectService
+from .services.rag import RagService
 from .services.supabase import get_supabase_client
 
 
@@ -60,10 +62,17 @@ def get_project_service(
     client: Client = Depends(get_server_supabase_client),
     settings: Settings = Depends(get_app_settings),
 ) -> ProjectService:
-    return ProjectService(client, settings)
+    return ProjectService(client, settings, DocumentQueueService(settings))
 
 
 def get_chat_service(
     client: Client = Depends(get_server_supabase_client),
 ) -> ChatService:
     return ChatService(client)
+
+
+def get_rag_service(
+    client: Client = Depends(get_server_supabase_client),
+    settings: Settings = Depends(get_app_settings),
+) -> RagService:
+    return RagService(client, settings)

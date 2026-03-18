@@ -10,6 +10,7 @@ export function ConversationsList(props: {
   onNewChat: () => void;
   onChat: (chatId: string) => void;
   onDeleteChat: (chatId: string) => void;
+  onDeleteProject: () => void;
 }) {
   return (
     <section className="flex-1 min-w-0 overflow-auto border border-neon-border rounded-[24px] bg-[rgba(17,24,39,0.78)] shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
@@ -27,13 +28,22 @@ export function ConversationsList(props: {
               {props.project.description || "No description yet."}
             </p>
           </div>
-          <button
-            onClick={props.onNewChat}
-            className="inline-flex items-center gap-2 px-[14px] py-3 rounded-[14px] font-bold bg-neon-accent text-neon-bg shadow-[0_0_18px_rgba(250,204,21,0.18)] hover:bg-neon-accent-hover transition-[140ms] shrink-0"
-          >
-            <Icon name="plus" />
-            <span>New conversation</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={props.onDeleteProject}
+              className="inline-flex items-center gap-2 px-[14px] py-3 rounded-[14px] border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] text-[#fca5a5] hover:bg-[rgba(239,68,68,0.12)] transition-[140ms]"
+            >
+              <Icon name="trash" />
+              <span>Delete project</span>
+            </button>
+            <button
+              onClick={props.onNewChat}
+              className="inline-flex items-center gap-2 px-[14px] py-3 rounded-[14px] font-bold bg-neon-accent text-neon-bg shadow-[0_0_18px_rgba(250,204,21,0.18)] hover:bg-neon-accent-hover transition-[140ms] shrink-0"
+            >
+              <Icon name="plus" />
+              <span>New conversation</span>
+            </button>
+          </div>
         </div>
 
         {/* Conversations heading */}
