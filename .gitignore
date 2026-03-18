@@ -20,8 +20,10 @@ __pycache__
 *.log
 .DS_Store
 
-# Claude session data
+# Claude session data and context files
 .claude/
+CLAUDE.md
+**/CLAUDE.md
 
 # Accidental nested app dirs (created by agents running in wrong cwd)
 apps/*/apps/
