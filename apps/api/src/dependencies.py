@@ -1,3 +1,4 @@
+import redis as redis_lib
 from fastapi import Depends, Header, HTTPException
 from supabase import Client
 
@@ -56,6 +57,12 @@ def get_current_user(
         )[0]
 
     return CurrentUser.model_validate(user)
+
+
+def get_redis_client(
+    settings: Settings = Depends(get_app_settings),
+) -> redis_lib.Redis:
+    return redis_lib.Redis(host=settings.redis_host, port=settings.redis_port, db=1, decode_responses=False)
 
 
 def get_project_service(

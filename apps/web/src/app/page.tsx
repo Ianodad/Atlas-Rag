@@ -16,14 +16,33 @@ import type {
 } from "../types";
 import { ACTIVE_STATUSES } from "../types";
 import { apiFetch } from "../lib/api";
+import dynamic from "next/dynamic";
 import { Sidebar } from "../components/sidebar";
 import { ProjectsGrid } from "../components/projects-grid";
 import { ConversationsList } from "../components/conversations-list";
 import { ChatInterface } from "../components/chat-interface";
-import { KnowledgeSidebar } from "../components/knowledge-sidebar";
 import { ProjectModal } from "../components/project-modal";
-import { DocumentModal } from "../components/document-modal";
 import { Icon } from "../components/icons";
+
+const KnowledgeSidebar = dynamic(
+  () => import("../components/knowledge-sidebar").then((m) => ({ default: m.KnowledgeSidebar })),
+  {
+    ssr: false,
+    loading: () => (
+      <aside className="w-[360px] shrink-0 flex flex-col min-h-0 border border-neon-border rounded-[24px] bg-[rgba(17,24,39,0.78)]">
+        <div className="px-5 py-[18px] border-b border-neon-border">
+          <div className="animate-pulse h-5 w-28 bg-neon-border rounded" />
+        </div>
+        <div className="flex-1" />
+      </aside>
+    ),
+  }
+);
+
+const DocumentModal = dynamic(
+  () => import("../components/document-modal").then((m) => ({ default: m.DocumentModal })),
+  { ssr: false }
+);
 
 export default function HomePage() {
   const router = useRouter();

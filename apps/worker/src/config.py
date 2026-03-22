@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     unstructured_api_url: str = DEFAULT_UNSTRUCTURED_API_URL
     unstructured_ssl_verify: bool = True
     unstructured_ca_bundle: str | None = None
+    url_fetch_timeout: int = 30
+    document_task_soft_time_limit: int = 540  # 9 minutes
+    document_task_time_limit: int = 600        # 10 minutes
+    document_task_max_retries: int = 2
 
     model_config = SettingsConfigDict(
         env_file=".env",

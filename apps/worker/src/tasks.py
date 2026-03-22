@@ -66,15 +66,16 @@ def _download_file(document: dict[str, Any], destination: Path) -> Path:
 
 
 def _fetch_url_html(source_url: str) -> str:
+    timeout = get_settings().url_fetch_timeout
     try:
         import httpx
     except ImportError:
         from urllib.request import urlopen
 
-        with urlopen(source_url, timeout=30) as response:
+        with urlopen(source_url, timeout=timeout) as response:
             return response.read().decode("utf-8", errors="ignore")
 
-    with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+    with httpx.Client(follow_redirects=True, timeout=float(timeout)) as client:
         response = client.get(source_url)
         response.raise_for_status()
         return response.text
@@ -139,7 +140,16 @@ def _replace_document_chunks(
     client.table("document_chunks").insert(rows).execute()
 
 
-@celery_app.task(bind=True, name=get_settings().worker_process_document_task)
+_settings = get_settings()
+
+
+@celery_app.task(
+    bind=True,
+    name=_settings.worker_process_document_task,
+    max_retries=_settings.document_task_max_retries,
+    soft_time_limit=_settings.document_task_soft_time_limit,
+    time_limit=_settings.document_task_time_limit,
+)
 def process_document(self, document_id: str) -> dict[str, str]:
     document = _fetch_document(document_id)
     if document is None:
@@ -148,6 +158,11 @@ def process_document(self, document_id: str) -> dict[str, str]:
     project_settings = _fetch_project_settings(document["project_id"])
 
     task_id = self.request.id
+    attempt = self.request.retries + 1
+    logger.info(
+        "Document processing started",
+        extra={"document_id": document_id, "task_id": task_id, "attempt": attempt},
+    )
     current_details = dict(document.get("processing_details") or {})
     processing_details = {
         **current_details,
@@ -155,7 +170,7 @@ def process_document(self, document_id: str) -> dict[str, str]:
         "queueStatus": "processing",
         "taskId": task_id,
         "startedAt": _timestamp(),
-        "attempt": self.request.retries + 1,
+        "attempt": attempt,
         "worker": "celery",
     }
     _update_document(
@@ -288,13 +303,48 @@ def process_document(self, document_id: str) -> dict[str, str]:
                 "page_count": diagnostics.get("page_count"),
             },
         )
+        logger.info(
+            "Document processing completed",
+            extra={"document_id": document_id, "task_id": task_id, "attempt": attempt},
+        )
     except Exception as exc:
+        retry_n = self.request.retries
+        max_r = self.max_retries
+        logger.error(
+            "Document processing failed (attempt %d/%d): %s",
+            retry_n + 1,
+            max_r + 1,
+            exc,
+            extra={"document_id": document_id, "task_id": task_id},
+        )
+        if retry_n < max_r:
+            retry_details = {
+                **failure_context,
+                "phase": "queued",
+                "queueStatus": "retrying",
+                "failedAt": _timestamp(),
+                "error": str(exc),
+                "attempt": retry_n + 1,
+                "willRetry": True,
+            }
+            _update_document(
+                document_id,
+                {
+                    "task_id": task_id,
+                    "processing_status": "queued",
+                    "processing_details": retry_details,
+                },
+            )
+            raise self.retry(exc=exc, countdown=30 * (retry_n + 1))
+
         failed_details = {
             **failure_context,
             "phase": "failed",
             "queueStatus": "failed",
             "failedAt": _timestamp(),
             "error": str(exc),
+            "attempt": retry_n + 1,
+            "willRetry": False,
         }
         _update_document(
             document_id,

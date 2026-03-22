@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections import Counter
 from typing import Any, TypedDict
 
@@ -99,17 +100,21 @@ class ChunkSummarizer:
         prompt = self._build_summary_prompt(chunk)
         client = OpenAI(api_key=self.settings.openai_api_key.get_secret_value())
 
-        try:
-            response = client.responses.create(
-                model=model,
-                input=prompt,
-                max_output_tokens=220,
-            )
-        except Exception:
-            return None
+        _max_retries = 2
+        for attempt in range(_max_retries + 1):
+            try:
+                response = client.responses.create(
+                    model=model,
+                    input=prompt,
+                    max_output_tokens=220,
+                )
+                text = getattr(response, "output_text", "").strip()
+                return text or None
+            except Exception:
+                if attempt < _max_retries:
+                    time.sleep(1.0 * (attempt + 1))
 
-        text = getattr(response, "output_text", "").strip()
-        return text or None
+        return None
 
     def _build_summary_prompt(self, chunk: ChunkRecord) -> str:
         elements = chunk["original_content"].get("elements", [])

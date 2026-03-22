@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from ..config import get_settings
 from ..dependencies import get_current_user, get_project_service
 from ..schemas.auth import CurrentUser
 from ..schemas.projects import (
@@ -11,6 +12,25 @@ from ..schemas.projects import (
 from ..services.projects import DocumentEnqueueError, ProjectService
 
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["project-files"])
+
+_ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "text/markdown",
+    "text/html",
+}
+
+
+def _validate_upload(size_bytes: int | None, mime_type: str | None) -> None:
+    settings = get_settings()
+    if size_bytes is not None and size_bytes > settings.max_file_size_bytes:
+        max_mb = settings.max_file_size_bytes // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"File exceeds the maximum allowed size of {max_mb} MB")
+    if mime_type and mime_type not in _ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=415, detail=f"Unsupported file type: {mime_type}")
 
 
 @router.get("", response_model=list[ProjectDocumentResponse])
@@ -42,6 +62,7 @@ def create_project_file_upload_url(
     current_user: CurrentUser = Depends(get_current_user),
     service: ProjectService = Depends(get_project_service),
 ) -> ProjectFileUploadUrlResponse:
+    _validate_upload(payload.size_bytes, payload.mime_type)
     try:
         upload = service.create_project_file_upload_url(project_id, current_user.id, payload)
     except ValueError as exc:
@@ -59,6 +80,7 @@ def confirm_project_file_upload(
     current_user: CurrentUser = Depends(get_current_user),
     service: ProjectService = Depends(get_project_service),
 ) -> ProjectDocumentResponse:
+    _validate_upload(payload.size_bytes, payload.mime_type)
     try:
         document = service.confirm_project_file_upload(project_id, current_user.id, payload)
     except DocumentEnqueueError as exc:

@@ -157,6 +157,25 @@ class ProjectService:
         project = self.get_project(project_id, user_id)
         if project is None:
             return False
+
+        # Clean up storage objects before removing the DB rows
+        documents = execute_data(
+            self.client.table("project_documents")
+            .select("storage_bucket, storage_path")
+            .eq("project_id", project_id)
+        )
+        paths_by_bucket: dict[str, list[str]] = {}
+        for doc in documents:
+            bucket = doc.get("storage_bucket")
+            path = doc.get("storage_path")
+            if bucket and path:
+                paths_by_bucket.setdefault(bucket, []).append(path)
+        for bucket, paths in paths_by_bucket.items():
+            try:
+                self.client.storage.from_(bucket).remove(paths)
+            except StorageException:
+                pass  # Keep deletion idempotent if objects are already gone
+
         self.client.table("projects").delete().eq("id", project_id).eq("user_id", user_id).execute()
         return True
 

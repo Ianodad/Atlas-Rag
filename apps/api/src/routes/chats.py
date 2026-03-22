@@ -1,11 +1,14 @@
+import redis as redis_lib
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
-from ..dependencies import get_chat_service, get_current_user, get_rag_service
+from ..config import Settings
+from ..dependencies import get_app_settings, get_chat_service, get_current_user, get_rag_service, get_redis_client
 from ..schemas.auth import CurrentUser
 from ..schemas.chats import ChatCreate, ChatDetailResponse, ChatRename, ChatResponse, MessageCreate, MessageFeedbackCreate, MessageFeedbackResponse, MessageResponse
 from ..services.chats import ChatService
 from ..services.rag import RagService
+from ..services.rate_limit import check_chat_rate_limit
 
 # Routing decision (Phase 5):
 # Messages live at /chats/{chat_id}/messages, not /projects/{id}/chats/{id}/messages.
@@ -82,6 +85,8 @@ async def create_chat_message(
     current_user: CurrentUser = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
     rag_service: RagService = Depends(get_rag_service),
+    redis_client: redis_lib.Redis = Depends(get_redis_client),
+    settings: Settings = Depends(get_app_settings),
 ) -> StreamingResponse:
     """
     Stream a RAG answer as Server-Sent Events.
@@ -92,6 +97,8 @@ async def create_chat_message(
     - error   {"message": "..."}         — non-fatal error description
     - done    {"answer": "...", "citations": [...]}  — completion
     """
+    check_chat_rate_limit(current_user.id, redis_client, settings.chat_rate_limit_per_minute)
+
     # Verify chat ownership
     chat = chat_service.get_chat(chat_id, current_user.id)
     if chat is None:

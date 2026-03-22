@@ -31,6 +31,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3101",
         "http://localhost:3101",
     ]
+    max_file_size_bytes: int = 100 * 1024 * 1024  # 100 MB
+    chat_rate_limit_per_minute: int = 20
 
     model_config = SettingsConfigDict(
         env_file=".env",
