@@ -44,6 +44,14 @@ const DocumentModal = dynamic(
   { ssr: false }
 );
 
+const DEFAULT_CHAT_TITLE = "New conversation";
+
+function buildDraftChatTitle(content: string) {
+  const normalized = content.trim().replace(/\s+/g, " ");
+  if (normalized.length <= 60) return normalized;
+  return `${normalized.slice(0, 60).trimEnd()}…`;
+}
+
 export default function HomePage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -138,6 +146,15 @@ export default function HomePage() {
   async function loadChat(chatId: string) {
     const chat = await apiFetch<ChatDetail>(`/chats/${chatId}`);
     setActiveChat(chat);
+  }
+
+  function updateChatTitleLocally(chatId: string, title: string) {
+    setChats((current) =>
+      current.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
+    );
+    setActiveChat((current) =>
+      current && current.id === chatId ? { ...current, title } : current,
+    );
   }
 
   useEffect(() => {
@@ -250,7 +267,7 @@ export default function HomePage() {
     try {
       const chat = await apiFetch<Chat>(`/projects/${activeProjectId}/chats`, {
         method: "POST",
-        body: JSON.stringify({ title: `Conversation ${chats.length + 1}` }),
+        body: JSON.stringify({ title: DEFAULT_CHAT_TITLE }),
       });
       await loadProjectContext(activeProjectId);
       setActiveChatId(chat.id);
@@ -311,6 +328,8 @@ export default function HomePage() {
   async function handleSendMessage() {
     if (!activeChatId || !draftMessage.trim()) return;
     const content = draftMessage.trim();
+    const isFirstMessage = !activeChat?.messages?.length;
+    const fallbackTitle = buildDraftChatTitle(content);
     setDraftMessage("");
     setIsSendingMessage(true);
     setStreamingContent("");
@@ -318,6 +337,16 @@ export default function HomePage() {
     setErrorMessage(null);
 
     try {
+      if (isFirstMessage) {
+        updateChatTitleLocally(activeChatId, fallbackTitle);
+        void apiFetch<Chat>(`/chats/${activeChatId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ title: fallbackTitle }),
+        }).catch(() => {
+          // non-fatal
+        });
+      }
+
       const response = await fetch(`/api/chats/${activeChatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -358,18 +387,20 @@ export default function HomePage() {
           } else if (event === "done") {
             await loadChat(activeChatId);
             setStatusMessage("Answer complete.");
-            // Auto-rename on first message
-            const isFirstMessage = !activeChat?.messages?.length;
             if (isFirstMessage) {
-              const title = content.length > 50 ? content.slice(0, 50).trimEnd() + "…" : content;
+              const semanticTitle =
+                typeof data.title === "string" && data.title.trim()
+                  ? data.title.trim()
+                  : fallbackTitle;
               try {
+                updateChatTitleLocally(activeChatId, semanticTitle);
                 await apiFetch<Chat>(`/chats/${activeChatId}`, {
                   method: "PATCH",
-                  body: JSON.stringify({ title }),
+                  body: JSON.stringify({ title: semanticTitle }),
                 });
                 if (activeProjectId) await loadProjectContext(activeProjectId);
               } catch {
-                // non-fatal, title stays as default
+                // non-fatal
               }
             }
           }

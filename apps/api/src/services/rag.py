@@ -98,7 +98,8 @@ class RagService:
             yield _sse("error", {"message": f"Generation failed: {exc}"})
             return
 
-        yield _sse("done", {"answer": full_answer, "citations": citations})
+        title = await _generate_chat_title(client, user_content)
+        yield _sse("done", {"answer": full_answer, "citations": citations, "title": title})
 
     def _count_project_chunks(self, project_id: str) -> int:
         rows = (
@@ -179,6 +180,30 @@ _DEFAULT_SYSTEM_PROMPT = (
     "If the answer is not present in the context, say so clearly. "
     "Do not make up information. Preserve factual accuracy."
 )
+
+
+async def _generate_chat_title(client: Any, user_content: str) -> str | None:
+    """Generate a short semantic title (≤8 words) for the chat from the user's question."""
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0,
+            max_tokens=20,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Generate a concise 4-7 word title for a chat conversation based on the user's question. "
+                        "Reply with only the title — no quotes, no punctuation at the end, no explanation."
+                    ),
+                },
+                {"role": "user", "content": user_content},
+            ],
+        )
+        text = (response.choices[0].message.content or "").strip().strip('"').strip("'")
+        return text or None
+    except Exception:
+        return None
 
 
 async def _run_guardrail(client: Any, query: str) -> str | None:

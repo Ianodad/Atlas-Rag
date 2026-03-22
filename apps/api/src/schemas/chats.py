@@ -19,7 +19,7 @@ class MessageFeedbackResponse(ApiModel):
 
 
 class ChatCreate(ApiModel):
-    title: str
+    title: str | None = None
 
 
 class ChatRename(ApiModel):

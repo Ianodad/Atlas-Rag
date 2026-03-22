@@ -6,6 +6,9 @@ from ..schemas.chats import ChatCreate, ChatRename, MessageCreate, MessageFeedba
 from .common import execute_data, fetch_project, first_or_none
 
 
+DEFAULT_CHAT_TITLE = "New conversation"
+
+
 class ChatService:
     def __init__(self, client: Client):
         self.client = client
@@ -35,7 +38,7 @@ class ChatService:
             .insert(
                 {
                     "project_id": project_id,
-                    "title": payload.title,
+                    "title": (payload.title or "").strip() or DEFAULT_CHAT_TITLE,
                 }
             )
         )
