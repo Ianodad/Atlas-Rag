@@ -1,11 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
 import { useProjectsContext } from "../context/projects-context";
 import { useProjectContext } from "../context/project-context";
-import { useChatContext } from "../context/chat-context";
 
 import dynamic from "next/dynamic";
 import { Sidebar } from "../components/sidebar";
@@ -42,103 +38,16 @@ const DocumentModal = dynamic(
 );
 
 export default function HomePage() {
-  const router = useRouter();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { showProjectModal, setShowProjectModal, statusMessage, errorMessage, isBusy, handleCreateProject } =
+    useProjectsContext();
 
-  const {
-    filteredProjects,
-    searchQuery,
-    setSearchQuery,
-    showProjectModal,
-    setShowProjectModal,
-    statusMessage,
-    errorMessage,
-    isBusy,
-    handleCreateProject,
-    handleDeleteProject,
-  } = useProjectsContext();
-
-  const {
-    activeProjectId,
-    setActiveProjectId,
-    activeProject,
-    documents,
-    chats,
-    settings,
-    settingsDraft,
-    setSettingsDraft,
-    knowledgeTab,
-    setKnowledgeTab,
-    urlValue,
-    setUrlValue,
-    selectedFileName,
-    selectedDocumentId,
-    setSelectedDocumentId,
-    isSavingSettings,
-    view,
-    setView,
-    fileInputRef,
-    handleNewChat,
-    handleDeleteChat,
-    handleDeleteDocument,
-    handleSelectedFile,
-    handleAddUrl,
-    handleSaveSettings,
-  } = useProjectContext();
-
-  const {
-    activeChatId,
-    setActiveChatId,
-    activeChat,
-    setActiveChat,
-    draftMessage,
-    setDraftMessage,
-    isSendingMessage,
-    streamingContent,
-    streamingStatus,
-    handleSendMessage,
-    handleFeedback,
-  } = useChatContext();
-
-  // Navigation coordinators: couple data handlers to view/chat state
-  async function onNewChat() {
-    const result = await handleNewChat();
-    if (result) {
-      setActiveChatId(result.chatId);
-      setView("chat");
-    }
-  }
-
-  async function onDeleteChat(chatId: string) {
-    const result = await handleDeleteChat(chatId, activeChatId);
-    if (result.clearedChat) {
-      setActiveChatId(null);
-      setActiveChat(null);
-      setView("detail");
-    }
-  }
+  const { activeProject, documents, selectedDocumentId, setSelectedDocumentId, view } =
+    useProjectContext();
 
   return (
     <>
       <div className="flex min-h-screen">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          projects={filteredProjects}
-          activeProjectId={activeProjectId}
-          onToggle={() => setSidebarCollapsed((c) => !c)}
-          onProject={(id) => {
-            setActiveProjectId(id);
-            setActiveChatId(null);
-            setActiveChat(null);
-            setView("detail");
-            router.push(`/projects/${id}`);
-          }}
-          onOpenProjects={() => {
-            setView("projects");
-            router.push("/projects");
-          }}
-          onNewProject={() => setShowProjectModal(true)}
-        />
+        <Sidebar />
 
         <main className="flex flex-col flex-1 min-w-0 p-4 gap-[14px]">
           <div className="flex items-center justify-between gap-3 px-[18px] py-[14px] border border-neon-border rounded-[18px] bg-[rgba(17,24,39,0.72)] backdrop-blur-[10px]">
@@ -146,9 +55,7 @@ export default function HomePage() {
               <strong className="block text-[0.98rem] text-neon-text">
                 AtlasRAG Dashboard
               </strong>
-              <span className="text-neon-muted text-[0.92rem]">
-                {statusMessage}
-              </span>
+              <span className="text-neon-muted text-[0.92rem]">{statusMessage}</span>
             </div>
             <div className="flex items-center gap-3">
               {errorMessage && (
@@ -165,45 +72,12 @@ export default function HomePage() {
 
           <div className="flex gap-4 min-h-0 flex-1">
             {view === "projects" ? (
-              <ProjectsGrid
-                projects={filteredProjects}
-                query={searchQuery}
-                setQuery={setSearchQuery}
-                onProject={(id) => {
-                  setActiveProjectId(id);
-                  setView("detail");
-                  router.push(`/projects/${id}`);
-                }}
-                onNewProject={() => setShowProjectModal(true)}
-                onDeleteProject={(id) => void handleDeleteProject(id)}
-              />
+              <ProjectsGrid />
             ) : activeProject ? (
               view === "detail" ? (
-                <ConversationsList
-                  project={activeProject}
-                  chats={chats}
-                  onNewChat={() => void onNewChat()}
-                  onChat={(id) => {
-                    setActiveChatId(id);
-                    setView("chat");
-                  }}
-                  onDeleteChat={(id) => void onDeleteChat(id)}
-                  onDeleteProject={() =>
-                    void handleDeleteProject(activeProject.id)
-                  }
-                />
+                <ConversationsList />
               ) : (
-                <ChatInterface
-                  chat={activeChat}
-                  draft={draftMessage}
-                  setDraft={setDraftMessage}
-                  onBack={() => setView("detail")}
-                  onSend={() => void handleSendMessage()}
-                  isSending={isSendingMessage}
-                  streamingContent={streamingContent}
-                  streamingStatus={streamingStatus}
-                  onFeedback={(id, rating) => void handleFeedback(id, rating)}
-                />
+                <ChatInterface />
               )
             ) : (
               <section className="flex-1 min-w-0 overflow-auto border border-neon-border rounded-[24px] bg-[rgba(17,24,39,0.78)] shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
@@ -211,9 +85,7 @@ export default function HomePage() {
                   <div className="inline-flex items-center justify-center w-11 h-11 rounded-[16px] bg-white/[0.04] border border-neon-border text-neon-accent">
                     <Icon name="briefcase" />
                   </div>
-                  <h3 className="m-0 text-base text-neon-text">
-                    No project selected
-                  </h3>
+                  <h3 className="m-0 text-base text-neon-text">No project selected</h3>
                   <p className="text-neon-muted text-[0.92rem]">
                     Create a project to start the upload flow.
                   </p>
@@ -221,35 +93,10 @@ export default function HomePage() {
               </section>
             )}
 
-            {activeProject && (
-              <KnowledgeSidebar
-                activeTab={knowledgeTab}
-                setActiveTab={setKnowledgeTab}
-                documents={documents}
-                selectedFileName={selectedFileName}
-                urlValue={urlValue}
-                setUrlValue={setUrlValue}
-                onFilePicker={() => fileInputRef.current?.click()}
-                onAddUrl={handleAddUrl}
-                onDeleteDocument={(id) => void handleDeleteDocument(id)}
-                onViewDocument={(id) => setSelectedDocumentId(id)}
-                settings={settings}
-                settingsDraft={settingsDraft}
-                setSettingsDraft={setSettingsDraft}
-                onSaveSettings={() => void handleSaveSettings()}
-                isSavingSettings={isSavingSettings}
-              />
-            )}
+            {activeProject && <KnowledgeSidebar />}
           </div>
         </main>
       </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        hidden
-        onChange={handleSelectedFile}
-      />
 
       {showProjectModal && (
         <ProjectModal
