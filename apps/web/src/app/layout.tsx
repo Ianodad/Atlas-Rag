@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata = {
   title: "AtlasRAG",
@@ -11,7 +12,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="antialiased selection:bg-neon-accent selection:text-neon-bg bg-neon-bg">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
