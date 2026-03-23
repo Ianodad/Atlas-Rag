@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useProjectsContext } from "../context/projects-context";
-import { useProjectContext } from "../context/project-context";
 import { Icon } from "./icons";
 
 export function ProjectsGrid() {
@@ -14,7 +13,6 @@ export function ProjectsGrid() {
     setShowProjectModal,
     handleDeleteProject,
   } = useProjectsContext();
-  const { setActiveProjectId, setView } = useProjectContext();
 
   return (
     <section className="flex-1 min-w-0 overflow-auto border border-neon-border rounded-[24px] bg-[rgba(17,24,39,0.78)] shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
@@ -74,11 +72,7 @@ export function ProjectsGrid() {
                 </button>
               </div>
               <button
-                onClick={() => {
-                  setActiveProjectId(project.id);
-                  setView("detail");
-                  router.push(`/projects/${project.id}`);
-                }}
+                onClick={() => router.push(`/projects/${project.id}`)}
                 className="flex flex-col items-start gap-4 p-0 bg-transparent border-0 text-left text-inherit w-full"
               >
                 <strong className="text-[1.02rem]">{project.name}</strong>

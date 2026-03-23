@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Citation } from "../types";
 import { apiFetch } from "../lib/api";
+import { useRouter } from "next/navigation";
 import { useProjectContext } from "../context/project-context";
 import { useChatContext } from "../context/chat-context";
 import { Icon } from "./icons";
@@ -107,9 +108,10 @@ function StreamingBubble({
 }
 
 export function ChatInterface() {
+  const router = useRouter();
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  const { setView } = useProjectContext();
+  const { activeProjectId } = useProjectContext();
   const {
     activeChat,
     draftMessage,
@@ -130,7 +132,7 @@ export function ChatInterface() {
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-[18px] border-b border-neon-border">
         <button
-          onClick={() => setView("detail")}
+          onClick={() => activeProjectId && router.push(`/projects/${activeProjectId}`)}
           aria-label="Back to project"
           className="inline-flex items-center justify-center w-[38px] h-[38px] rounded-xl border border-neon-border bg-white/[0.02] text-neon-muted hover:text-neon-text hover:bg-neon-elevated transition-[140ms]"
         >

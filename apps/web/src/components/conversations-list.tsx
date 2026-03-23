@@ -1,33 +1,33 @@
 "use client";
 
+import { useRouter, useParams } from "next/navigation";
 import { useProjectsContext } from "../context/projects-context";
 import { useProjectContext } from "../context/project-context";
-import { useChatContext } from "../context/chat-context";
 import { formatTimestamp } from "../lib/utils";
 import { Icon } from "./icons";
 
 export function ConversationsList() {
+  const router = useRouter();
+  const params = useParams();
+  const currentChatId = typeof params.chatId === "string" ? params.chatId : null;
+
   const { handleDeleteProject } = useProjectsContext();
-  const { activeProject, chats, setView, handleNewChat, handleDeleteChat } =
+  const { activeProjectId, activeProject, chats, handleNewChat, handleDeleteChat } =
     useProjectContext();
-  const { activeChatId, setActiveChatId, setActiveChat } = useChatContext();
 
   if (!activeProject) return null;
 
   async function onNewChat() {
     const result = await handleNewChat();
-    if (result) {
-      setActiveChatId(result.chatId);
-      setView("chat");
+    if (result && activeProjectId) {
+      router.push(`/projects/${activeProjectId}/chats/${result.chatId}`);
     }
   }
 
   async function onDeleteChat(chatId: string) {
-    const result = await handleDeleteChat(chatId, activeChatId);
-    if (result.clearedChat) {
-      setActiveChatId(null);
-      setActiveChat(null);
-      setView("detail");
+    await handleDeleteChat(chatId);
+    if (chatId === currentChatId && activeProjectId) {
+      router.push(`/projects/${activeProjectId}`);
     }
   }
 
@@ -94,10 +94,10 @@ export function ConversationsList() {
                 className="group flex items-center justify-between gap-3 px-4 py-[14px] rounded-[18px] border border-neon-border bg-white/[0.02]"
               >
                 <button
-                  onClick={() => {
-                    setActiveChatId(chat.id);
-                    setView("chat");
-                  }}
+                  onClick={() =>
+                    activeProjectId &&
+                    router.push(`/projects/${activeProjectId}/chats/${chat.id}`)
+                  }
                   className="flex items-center gap-[14px] flex-1 min-w-0 bg-transparent border-0 text-inherit text-left"
                 >
                   <div className="inline-flex items-center justify-center w-11 h-11 shrink-0 rounded-[16px] bg-white/[0.04] border border-neon-border text-neon-accent">

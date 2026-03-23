@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { useParams } from "next/navigation";
 import type { Chat, ChatDetail } from "../types";
 import { apiFetch } from "../lib/api";
 import { useProjectContext } from "./project-context";
@@ -9,9 +10,7 @@ import { useProjectsContext } from "./projects-context";
 
 type ChatContextValue = {
   activeChatId: string | null;
-  setActiveChatId: (id: string | null) => void;
   activeChat: ChatDetail | null;
-  setActiveChat: (chat: ChatDetail | null) => void;
   draftMessage: string;
   setDraftMessage: (msg: string) => void;
   isSendingMessage: boolean;
@@ -41,11 +40,14 @@ function buildDraftChatTitle(content: string) {
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const params = useParams();
+  const activeChatId =
+    typeof params.chatId === "string" ? params.chatId : null;
+
   const { activeProjectId, loadProjectContext, updateChatInList } =
     useProjectContext();
   const { setStatusMessage, setErrorMessage } = useProjectsContext();
 
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [activeChat, setActiveChat] = useState<ChatDetail | null>(null);
   const [draftMessage, setDraftMessage] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -57,10 +59,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setActiveChat(chat);
   }, []);
 
+  // Auto-load (or clear) active chat when URL chatId changes
+  useEffect(() => {
+    if (!activeChatId) {
+      setActiveChat(null);
+      setDraftMessage("");
+      return;
+    }
+    void loadChat(activeChatId).catch((err) => {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to load chat.");
+    });
+  }, [activeChatId, loadChat]);
+
   const updateActiveChatTitle = useCallback((title: string) => {
-    setActiveChat((current) =>
-      current ? { ...current, title } : current,
-    );
+    setActiveChat((current) => (current ? { ...current, title } : current));
   }, []);
 
   const handleSendMessage = useCallback(async () => {
@@ -88,12 +100,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`/api/chats/${activeChatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: "user",
-          content,
-          citations: [],
-          metadata: {},
-        }),
+        body: JSON.stringify({ role: "user", content, citations: [], metadata: {} }),
         cache: "no-store",
       });
 
@@ -114,12 +121,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         buffer = blocks.pop() ?? "";
 
         for (const block of blocks) {
-          const eventLine = block
-            .split("\n")
-            .find((l) => l.startsWith("event:"));
-          const dataLine = block
-            .split("\n")
-            .find((l) => l.startsWith("data:"));
+          const eventLine = block.split("\n").find((l) => l.startsWith("event:"));
+          const dataLine = block.split("\n").find((l) => l.startsWith("data:"));
           if (!eventLine || !dataLine) continue;
 
           const event = eventLine.slice("event:".length).trim();
@@ -155,9 +158,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Failed to send message.",
-      );
+      setErrorMessage(err instanceof Error ? err.message : "Failed to send message.");
     } finally {
       setIsSendingMessage(false);
       setStreamingContent("");
@@ -186,10 +187,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           { method: "DELETE" },
         );
       } else {
-        await apiFetch(
-          `/chats/${activeChatId}/messages/${messageId}/feedback`,
-          { method: "POST", body: JSON.stringify({ rating }) },
-        );
+        await apiFetch(`/chats/${activeChatId}/messages/${messageId}/feedback`, {
+          method: "POST",
+          body: JSON.stringify({ rating }),
+        });
       }
       await loadChat(activeChatId);
     },
@@ -200,9 +201,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     <ChatContext.Provider
       value={{
         activeChatId,
-        setActiveChatId,
         activeChat,
-        setActiveChat,
         draftMessage,
         setDraftMessage,
         isSendingMessage,

@@ -96,7 +96,6 @@ export type UploadUrlResponse = {
   token: string;
 };
 
-export type View = "projects" | "detail" | "chat";
 export type KnowledgeTab = "documents" | "settings";
 
 export const ACTIVE_STATUSES = new Set([

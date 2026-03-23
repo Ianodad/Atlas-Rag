@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useProjectsContext } from "../context/projects-context";
 import { useProjectContext } from "../context/project-context";
-import { useChatContext } from "../context/chat-context";
 import { Icon } from "./icons";
 
 export function Sidebar() {
@@ -12,8 +11,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   const { projects, setShowProjectModal } = useProjectsContext();
-  const { activeProjectId, setActiveProjectId, setView } = useProjectContext();
-  const { setActiveChatId, setActiveChat } = useChatContext();
+  const { activeProjectId } = useProjectContext();
 
   return (
     <aside
@@ -47,10 +45,7 @@ export function Sidebar() {
 
         {!collapsed && (
           <button
-            onClick={() => {
-              setView("projects");
-              router.push("/projects");
-            }}
+            onClick={() => router.push("/projects")}
             className="inline-flex items-center gap-2 px-[14px] py-3 rounded-[14px] border border-neon-border bg-white/[0.03] text-neon-text font-bold hover:bg-neon-elevated transition-[140ms]"
           >
             <Icon name="briefcase" />
@@ -69,13 +64,7 @@ export function Sidebar() {
             {projects.map((project) => (
               <button
                 key={project.id}
-                onClick={() => {
-                  setActiveProjectId(project.id);
-                  setActiveChatId(null);
-                  setActiveChat(null);
-                  setView("detail");
-                  router.push(`/projects/${project.id}`);
-                }}
+                onClick={() => router.push(`/projects/${project.id}`)}
                 className={`inline-flex items-center gap-2 px-[14px] py-3 rounded-[14px] border w-full text-left transition-[140ms] ${
                   activeProjectId === project.id
                     ? "text-neon-text bg-white/[0.03] border-[rgba(167,139,250,0.3)]"
