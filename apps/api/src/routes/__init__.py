@@ -1,6 +1,7 @@
 from fastapi import APIRouter, FastAPI
 
 from .chats import router as chats_router
+from .chunks import router as chunks_router
 from .files import router as files_router
 from .health import router as health_router
 from .projects import router as projects_router
@@ -16,4 +17,5 @@ def register_routes(app: FastAPI) -> None:
     api_router.include_router(files_router)
     api_router.include_router(urls_router)
     api_router.include_router(chats_router)
+    api_router.include_router(chunks_router)
     app.include_router(api_router)

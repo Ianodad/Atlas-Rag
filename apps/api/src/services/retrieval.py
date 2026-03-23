@@ -210,19 +210,50 @@ class RetrievalService:
             )
             doc_meta = {str(r["id"]): r for r in rows}
 
+        # Batch-fetch original_content + modality_flags (not returned by search RPCs)
+        chunk_ids = [str(c["chunk_id"]) for c in chunks if c.get("chunk_id")]
+        chunk_detail: dict[str, dict[str, Any]] = {}
+        if chunk_ids:
+            rows = (
+                self._client.table("document_chunks")
+                .select("id, original_content, modality_flags")
+                .in_("id", chunk_ids)
+                .execute()
+                .data
+                or []
+            )
+            chunk_detail = {str(r["id"]): r for r in rows}
+
         for chunk in chunks:
             texts.append(chunk.get("retrieval_text", ""))
             doc_id = str(chunk.get("document_id", ""))
             meta = doc_meta.get(doc_id, {})
+            chunk_id = str(chunk.get("chunk_id", ""))
+            detail = chunk_detail.get(chunk_id, {})
+            modality_flags: list[str] = detail.get("modality_flags") or []
+            has_images = "image" in modality_flags
+
+            # Extract images for the LLM vision prompt
+            original = detail.get("original_content") or {}
+            for el in (original.get("elements") or []):
+                if el.get("type") == "image":
+                    b64 = el.get("image_base64", "")
+                    if b64:
+                        # Strip data-URI prefix if present
+                        if b64.startswith("data:image"):
+                            b64 = b64.split(",", 1)[1]
+                        images.append(b64)
+
             citations.append(
                 {
-                    "chunk_id": chunk.get("chunk_id"),
+                    "chunk_id": chunk_id or None,
                     "document_id": doc_id or None,
                     "chunk_index": chunk.get("chunk_index"),
                     "page": chunk.get("page_number"),
                     "filename": meta.get("filename"),
                     "source_type": meta.get("source_type"),
                     "source_url": meta.get("source_url"),
+                    "has_images": has_images,
                 }
             )
 

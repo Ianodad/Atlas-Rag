@@ -16,12 +16,14 @@ export type Chat = {
 };
 
 export type Citation = {
+  chunk_id?: string | null;
   filename?: string;
   page?: number | null;
   source_type?: "file" | "url";
   source_url?: string | null;
   document_id?: string | null;
   chunk_index?: number | null;
+  has_images?: boolean;
 };
 
 export type MessageFeedback = {

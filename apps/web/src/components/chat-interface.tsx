@@ -1,8 +1,47 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChatDetail, Citation } from "../types";
+import { apiFetch } from "../lib/api";
 import { Icon } from "./icons";
+
+type ChunkImage = { index: number; page_number: number | null; image_base64: string };
+
+function ChunkImages({ chunkId }: { chunkId: string }) {
+  const [images, setImages] = useState<ChunkImage[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch<{ images: ChunkImage[] }>(`/chunks/${chunkId}/images`)
+      .then((data) => setImages(data.images))
+      .catch(() => {});
+  }, [chunkId]);
+
+  if (!images.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {images.map((img) => {
+        const src = `data:image/jpeg;base64,${img.image_base64}`;
+        const key = `${chunkId}-${img.index}`;
+        return (
+          <button
+            key={key}
+            onClick={() => setExpanded(expanded === key ? null : key)}
+            className="block rounded-lg border border-neon-border overflow-hidden hover:border-neon-accent transition-[140ms] focus:outline-none"
+            title={img.page_number ? `Page ${img.page_number}` : "Document image"}
+          >
+            <img
+              src={src}
+              alt={img.page_number ? `Page ${img.page_number}` : "Document image"}
+              className={`block object-contain transition-all duration-200 ${expanded === key ? "max-h-[480px] max-w-full" : "max-h-[120px] max-w-[180px]"}`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function CitationPill({ citation, idx }: { citation: Citation; idx: number }) {
   let label = citation.filename;
@@ -108,6 +147,16 @@ export function ChatInterface(props: {
                         {message.citations.map((citation, idx) => (
                           <CitationPill key={`${message.id}-${idx}`} citation={citation} idx={idx} />
                         ))}
+                      </div>
+                    ) : null}
+                    {message.role === "assistant" && message.citations?.some((c) => c.has_images && c.chunk_id) ? (
+                      <div className="mt-3 pt-3 border-t border-neon-border/40">
+                        <p className="text-[0.72rem] text-neon-muted mb-2 uppercase tracking-wide">Images from sources</p>
+                        {message.citations
+                          .filter((c) => c.has_images && c.chunk_id)
+                          .map((c) => (
+                            <ChunkImages key={c.chunk_id!} chunkId={c.chunk_id!} />
+                          ))}
                       </div>
                     ) : null}
                     {message.role === "assistant" && (
