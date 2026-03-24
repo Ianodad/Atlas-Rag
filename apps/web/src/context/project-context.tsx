@@ -8,11 +8,10 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChangeEvent, FormEvent, ReactNode, RefObject } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type {
   Chat,
-  KnowledgeTab,
   Project,
   ProjectDocument,
   ProjectSettings,
@@ -37,15 +36,12 @@ type ProjectContextValue = {
   settings: ProjectSettings | null;
   settingsDraft: ProjectSettings | null;
   setSettingsDraft: (s: ProjectSettings | null) => void;
-  knowledgeTab: KnowledgeTab;
-  setKnowledgeTab: (tab: KnowledgeTab) => void;
   urlValue: string;
   setUrlValue: (v: string) => void;
   selectedFileName: string;
   selectedDocumentId: string | null;
   setSelectedDocumentId: (id: string | null) => void;
   isSavingSettings: boolean;
-  fileInputRef: RefObject<HTMLInputElement | null>;
   loadProjectContext: (projectId: string) => Promise<void>;
   updateChatInList: (chatId: string, title: string) => void;
   handleNewChat: () => Promise<{ chatId: string } | null>;
@@ -79,7 +75,6 @@ export function ProjectProvider({
   const { setStatusMessage, setErrorMessage, setIsBusy } =
     useProjectsContext();
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const initializedRef = useRef(initialData != null);
 
   const [activeProject, setActiveProject] = useState<Project | null>(
@@ -95,7 +90,6 @@ export function ProjectProvider({
   const [settingsDraft, setSettingsDraft] = useState<ProjectSettings | null>(
     initialData?.settings ?? null,
   );
-  const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTab>("documents");
   const [urlValue, setUrlValue] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
@@ -338,15 +332,12 @@ export function ProjectProvider({
         settings,
         settingsDraft,
         setSettingsDraft,
-        knowledgeTab,
-        setKnowledgeTab,
         urlValue,
         setUrlValue,
         selectedFileName,
         selectedDocumentId,
         setSelectedDocumentId,
         isSavingSettings,
-        fileInputRef,
         loadProjectContext,
         updateChatInList,
         handleNewChat,

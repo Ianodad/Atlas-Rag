@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { KnowledgeTab } from "../types";
 import { useProjectContext } from "../context/project-context";
 import { documentLabel, documentMeta } from "../lib/utils";
@@ -93,15 +94,29 @@ function DocRow(props: {
 
 export function KnowledgeSidebar() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const knowledgeTab: KnowledgeTab =
+    searchParams.get("tab") === "settings" ? "settings" : "documents";
+
+  function setKnowledgeTab(tab: KnowledgeTab) {
+    const next = new URLSearchParams(searchParams.toString());
+    if (tab === "documents") {
+      next.delete("tab");
+    } else {
+      next.set("tab", tab);
+    }
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
 
   const {
-    knowledgeTab,
-    setKnowledgeTab,
     documents,
     selectedFileName,
     urlValue,
     setUrlValue,
-    selectedDocumentId: _selectedDocumentId,
     setSelectedDocumentId,
     settings,
     settingsDraft,

@@ -43,6 +43,10 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ pat
   return forward(request, await context.params);
 }
 
+export async function PATCH(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
+  return forward(request, await context.params);
+}
+
 export async function DELETE(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
   return forward(request, await context.params);
 }
