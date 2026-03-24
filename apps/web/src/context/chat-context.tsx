@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useParams } from "next/navigation";
 import type { Chat, ChatDetail } from "../types";
@@ -39,7 +39,13 @@ function buildDraftChatTitle(content: string) {
   return `${normalized.slice(0, 60).trimEnd()}…`;
 }
 
-export function ChatProvider({ children }: { children: ReactNode }) {
+export function ChatProvider({
+  children,
+  initialChat,
+}: {
+  children: ReactNode;
+  initialChat?: ChatDetail;
+}) {
   const params = useParams();
   const activeChatId =
     typeof params.chatId === "string" ? params.chatId : null;
@@ -48,7 +54,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     useProjectContext();
   const { setStatusMessage, setErrorMessage } = useProjectsContext();
 
-  const [activeChat, setActiveChat] = useState<ChatDetail | null>(null);
+  // Track which chat ID was pre-seeded from the server to skip client fetch
+  const seededChatIdRef = useRef<string | null>(initialChat?.id ?? null);
+
+  const [activeChat, setActiveChat] = useState<ChatDetail | null>(
+    initialChat ?? null,
+  );
   const [draftMessage, setDraftMessage] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
@@ -66,10 +77,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setDraftMessage("");
       return;
     }
+    // Skip client fetch if this chat was already seeded from the server
+    if (seededChatIdRef.current === activeChatId) {
+      seededChatIdRef.current = null;
+      return;
+    }
     void loadChat(activeChatId).catch((err) => {
-      setErrorMessage(err instanceof Error ? err.message : "Failed to load chat.");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to load chat.",
+      );
     });
-  }, [activeChatId, loadChat]);
+  }, [activeChatId, loadChat, setErrorMessage]);
 
   const updateActiveChatTitle = useCallback((title: string) => {
     setActiveChat((current) => (current ? { ...current, title } : current));

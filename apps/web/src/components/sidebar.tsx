@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useProjectsContext } from "../context/projects-context";
-import { useProjectContext } from "../context/project-context";
 import { Icon } from "./icons";
 
 export function Sidebar() {
   const router = useRouter();
+  const params = useParams();
   const [collapsed, setCollapsed] = useState(false);
 
   const { projects, setShowProjectModal } = useProjectsContext();
-  const { activeProjectId } = useProjectContext();
+  const activeProjectId =
+    typeof params.projectId === "string" ? params.projectId : null;
 
   return (
     <aside

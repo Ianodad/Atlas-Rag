@@ -2,15 +2,18 @@
 
 import type { ReactNode } from "react";
 import { ProjectsProvider } from "../context/projects-context";
-import { ProjectProvider } from "../context/project-context";
-import { ChatProvider } from "../context/chat-context";
+import type { Project } from "../types";
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({
+  children,
+  initialProjects,
+}: {
+  children: ReactNode;
+  initialProjects?: Project[];
+}) {
   return (
-    <ProjectsProvider>
-      <ProjectProvider>
-        <ChatProvider>{children}</ChatProvider>
-      </ProjectProvider>
+    <ProjectsProvider initialProjects={initialProjects}>
+      {children}
     </ProjectsProvider>
   );
 }

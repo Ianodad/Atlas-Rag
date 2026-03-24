@@ -38,13 +38,21 @@ export function useProjectsContext() {
   return ctx;
 }
 
-export function ProjectsProvider({ children }: { children: ReactNode }) {
+export function ProjectsProvider({
+  children,
+  initialProjects,
+}: {
+  children: ReactNode;
+  initialProjects?: Project[];
+}) {
   const router = useRouter();
 
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(initialProjects ?? []);
   const [searchQuery, setSearchQuery] = useState("");
   const [showProjectModal, setShowProjectModal] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("Loading dashboard...");
+  const [statusMessage, setStatusMessage] = useState(
+    initialProjects != null ? "Dashboard ready." : "Loading dashboard...",
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 

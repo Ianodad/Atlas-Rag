@@ -22,6 +22,13 @@ import { ACTIVE_STATUSES } from "../types";
 import { apiFetch } from "../lib/api";
 import { useProjectsContext } from "./projects-context";
 
+type InitialData = {
+  project: Project;
+  documents: ProjectDocument[];
+  chats: Chat[];
+  settings: ProjectSettings;
+};
+
 type ProjectContextValue = {
   activeProjectId: string | null;
   activeProject: Project | null;
@@ -57,22 +64,37 @@ export function useProjectContext() {
   return ctx;
 }
 
-export function ProjectProvider({ children }: { children: ReactNode }) {
+export function ProjectProvider({
+  children,
+  initialData,
+}: {
+  children: ReactNode;
+  initialData?: InitialData;
+}) {
   const router = useRouter();
   const params = useParams();
   const activeProjectId =
     typeof params.projectId === "string" ? params.projectId : null;
 
-  const { loadProjects, setStatusMessage, setErrorMessage, setIsBusy } =
+  const { setStatusMessage, setErrorMessage, setIsBusy } =
     useProjectsContext();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const initializedRef = useRef(initialData != null);
 
-  const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [documents, setDocuments] = useState<ProjectDocument[]>([]);
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [settings, setSettings] = useState<ProjectSettings | null>(null);
-  const [settingsDraft, setSettingsDraft] = useState<ProjectSettings | null>(null);
+  const [activeProject, setActiveProject] = useState<Project | null>(
+    initialData?.project ?? null,
+  );
+  const [documents, setDocuments] = useState<ProjectDocument[]>(
+    initialData?.documents ?? [],
+  );
+  const [chats, setChats] = useState<Chat[]>(initialData?.chats ?? []);
+  const [settings, setSettings] = useState<ProjectSettings | null>(
+    initialData?.settings ?? null,
+  );
+  const [settingsDraft, setSettingsDraft] = useState<ProjectSettings | null>(
+    initialData?.settings ?? null,
+  );
   const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTab>("documents");
   const [urlValue, setUrlValue] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
@@ -93,24 +115,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setSettingsDraft(cfg);
   }, []);
 
-  // Load projects list on mount and validate the route project ID
-  useEffect(() => {
-    void (async () => {
-      try {
-        const list = await loadProjects();
-        if (activeProjectId && !list.some((p) => p.id === activeProjectId)) {
-          router.replace("/projects");
-        }
-        setStatusMessage("Dashboard ready.");
-      } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : "Failed to load projects.");
-        setStatusMessage("Dashboard failed to load.");
-      }
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
-
-  // Load project data when URL project changes
+  // Load project data on mount — skipped when seeded from server
   useEffect(() => {
     if (!activeProjectId) {
       setActiveProject(null);
@@ -120,23 +125,37 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setSettingsDraft(null);
       return;
     }
+    if (initializedRef.current) {
+      initializedRef.current = false;
+      setStatusMessage("Dashboard ready.");
+      return;
+    }
     void loadProjectContext(activeProjectId).catch((err) => {
-      setErrorMessage(err instanceof Error ? err.message : "Failed to load project context.");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to load project context.",
+      );
     });
-  }, [activeProjectId, loadProjectContext]);
+  }, [activeProjectId, loadProjectContext, setStatusMessage, setErrorMessage]);
 
-  // Document status polling — auto-cleans when component unmounts or project changes
+  // Document status polling
   useEffect(() => {
-    if (!activeProjectId || !documents.some((d) => ACTIVE_STATUSES.has(d.processingStatus))) {
+    if (
+      !activeProjectId ||
+      !documents.some((d) => ACTIVE_STATUSES.has(d.processingStatus))
+    ) {
       return;
     }
     const id = window.setInterval(() => {
       void loadProjectContext(activeProjectId).catch((err) => {
-        setErrorMessage(err instanceof Error ? err.message : "Failed to refresh document statuses.");
+        setErrorMessage(
+          err instanceof Error
+            ? err.message
+            : "Failed to refresh document statuses.",
+        );
       });
     }, 5000);
     return () => window.clearInterval(id);
-  }, [activeProjectId, documents, loadProjectContext]);
+  }, [activeProjectId, documents, loadProjectContext, setErrorMessage]);
 
   const updateChatInList = useCallback((chatId: string, title: string) => {
     setChats((current) =>
@@ -155,7 +174,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setStatusMessage("Conversation created.");
       return { chatId: chat.id };
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Failed to create conversation.");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to create conversation.",
+      );
       return null;
     }
   }, [activeProjectId, loadProjectContext, setStatusMessage, setErrorMessage]);
@@ -167,7 +188,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (activeProjectId) await loadProjectContext(activeProjectId);
         setStatusMessage("Conversation deleted.");
       } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : "Failed to delete conversation.");
+        setErrorMessage(
+          err instanceof Error ? err.message : "Failed to delete conversation.",
+        );
       }
     },
     [activeProjectId, loadProjectContext, setStatusMessage, setErrorMessage],
@@ -177,13 +200,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     async (documentId: string) => {
       if (!activeProjectId) return;
       try {
-        await apiFetch<void>(`/projects/${activeProjectId}/files/${documentId}`, {
-          method: "DELETE",
-        });
+        await apiFetch<void>(
+          `/projects/${activeProjectId}/files/${documentId}`,
+          { method: "DELETE" },
+        );
         await loadProjectContext(activeProjectId);
         setStatusMessage("Document deleted.");
       } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : "Failed to delete document.");
+        setErrorMessage(
+          err instanceof Error ? err.message : "Failed to delete document.",
+        );
       }
     },
     [activeProjectId, loadProjectContext, setStatusMessage, setErrorMessage],
@@ -214,25 +240,32 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           body: file,
         });
         if (!storageResponse.ok) {
-          throw new Error(`Storage upload failed with status ${storageResponse.status}`);
+          throw new Error(
+            `Storage upload failed with status ${storageResponse.status}`,
+          );
         }
-        await apiFetch<ProjectDocument>(`/projects/${activeProjectId}/files/confirm`, {
-          method: "POST",
-          body: JSON.stringify({
-            filename: file.name,
-            mimeType: file.type || null,
-            storageBucket: upload.storageBucket,
-            storagePath: upload.storagePath,
-            sizeBytes: file.size,
-            metadata: { lastModified: file.lastModified },
-          }),
-        });
+        await apiFetch<ProjectDocument>(
+          `/projects/${activeProjectId}/files/confirm`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              filename: file.name,
+              mimeType: file.type || null,
+              storageBucket: upload.storageBucket,
+              storagePath: upload.storagePath,
+              sizeBytes: file.size,
+              metadata: { lastModified: file.lastModified },
+            }),
+          },
+        );
         await loadProjectContext(activeProjectId);
         setStatusMessage(`Queued "${file.name}" for ingestion.`);
         setSelectedFileName("");
         event.target.value = "";
       } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : "File upload failed.");
+        setErrorMessage(
+          err instanceof Error ? err.message : "File upload failed.",
+        );
       } finally {
         setIsBusy(false);
       }
@@ -254,7 +287,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         await loadProjectContext(activeProjectId);
         setStatusMessage("Website queued for ingestion.");
       } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : "Failed to add website.");
+        setErrorMessage(
+          err instanceof Error ? err.message : "Failed to add website.",
+        );
       } finally {
         setIsBusy(false);
       }
@@ -285,7 +320,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setSettingsDraft(updated);
       setStatusMessage("Settings updated.");
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Failed to save settings.");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to save settings.",
+      );
     } finally {
       setIsSavingSettings(false);
     }
