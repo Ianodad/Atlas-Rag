@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { ProjectDocument } from "../types";
+import { apiFetch } from "../lib/api";
 import { Icon } from "./icons";
 
 type Details = Record<string, unknown>;
@@ -114,12 +115,118 @@ function TagList({ items }: { items: Record<string, number> }) {
   );
 }
 
+type DocImage = { chunk_index: number; page_number: number | null; image_base64: string };
+
+function DocumentImages({
+  documentId,
+  detectedImageCount,
+  onReprocess,
+}: {
+  documentId: string;
+  detectedImageCount: number;
+  onReprocess?: () => void;
+}) {
+  const [images, setImages] = useState<DocImage[]>([]);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    apiFetch<{ images: DocImage[] }>(`/chunks/by-document/${documentId}/images`)
+      .then((d) => { setImages(d.images); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, [documentId]);
+
+  if (!loaded) return null;
+
+  // Images detected during partitioning but no base64 extracted
+  if (!images.length && detectedImageCount > 0) {
+    return (
+      <Section title={`Extracted Images (${detectedImageCount} detected)`} icon="image">
+        <div className="flex flex-col items-center gap-3 py-4 text-center">
+          <p className="m-0 text-neon-muted text-sm">
+            {detectedImageCount} image{detectedImageCount !== 1 ? "s" : ""} detected but image data was not extracted.
+            Reprocess to extract image content.
+          </p>
+          {onReprocess && (
+            <button
+              onClick={onReprocess}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-neon-accent text-neon-bg hover:bg-neon-accent-hover transition-[140ms]"
+            >
+              <Icon name="loader" />
+              Reprocess document
+            </button>
+          )}
+        </div>
+      </Section>
+    );
+  }
+
+  if (!images.length) return null;
+
+  return (
+    <Section title={`Extracted Images (${images.length})`} icon="image">
+      <div className="grid grid-cols-3 gap-2">
+        {images.map((img, i) => {
+          const src = `data:image/jpeg;base64,${img.image_base64}`;
+          return (
+            <button
+              key={i}
+              onClick={() => setExpanded(expanded === i ? null : i)}
+              className="relative rounded-lg border border-neon-border overflow-hidden hover:border-neon-accent transition-[140ms] focus:outline-none bg-black/20"
+            >
+              <img
+                src={src}
+                alt={img.page_number ? `Page ${img.page_number}` : `Image ${i + 1}`}
+                className="block w-full h-[80px] object-cover"
+              />
+              {img.page_number != null && (
+                <span className="absolute bottom-1 right-1 text-[0.6rem] px-1.5 py-0.5 rounded bg-black/60 text-neon-muted">
+                  p.{img.page_number}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Lightbox */}
+      {expanded !== null && images[expanded] && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setExpanded(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={`data:image/jpeg;base64,${images[expanded].image_base64}`}
+              alt={images[expanded].page_number ? `Page ${images[expanded].page_number}` : `Image ${expanded + 1}`}
+              className="block max-w-full max-h-[85vh] rounded-xl object-contain"
+            />
+            <button
+              onClick={() => setExpanded(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-neon-surface border border-neon-border text-neon-muted hover:text-neon-text flex items-center justify-center"
+            >
+              <Icon name="x" />
+            </button>
+            {images[expanded].page_number != null && (
+              <span className="absolute bottom-3 left-3 text-xs px-2 py-1 rounded-lg bg-black/60 text-neon-muted">
+                Page {images[expanded].page_number}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
 export function DocumentModal({
   doc,
   onClose,
+  onReprocess,
 }: {
   doc: ProjectDocument;
   onClose: () => void;
+  onReprocess?: () => void;
 }) {
   const details = (doc.processingDetails ?? {}) as Details;
   const currentPhase =
@@ -391,6 +498,17 @@ export function DocumentModal({
                 </div>
               )}
             </Section>
+          )}
+
+          {/* Extracted images */}
+          {doc.processingStatus === "completed" && (
+            <DocumentImages
+              documentId={doc.id}
+              detectedImageCount={
+                ((partitioningData?.elements_by_type as Record<string, number> | undefined)?.image) ?? 0
+              }
+              onReprocess={onReprocess}
+            />
           )}
 
           {/* Empty state while queued/early processing */}

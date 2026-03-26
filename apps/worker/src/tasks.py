@@ -201,6 +201,11 @@ def process_document(self, document_id: str) -> dict[str, str]:
         )
 
         parser_name, elements, diagnostics = _partition_document(document)
+        # Strip image base64 from diagnostics to keep processing_details small
+        diagnostic_elements = [
+            {k: v for k, v in el.items() if k != "image_base64"}
+            for el in elements
+        ]
         chunking_details = {
             **partitioning_details,
             "phase": "chunking",
@@ -208,7 +213,7 @@ def process_document(self, document_id: str) -> dict[str, str]:
             "partitioning": {
                 **diagnostics,
                 "parser": parser_name,
-                "elements": elements,
+                "elements": diagnostic_elements,
             },
             "chunkingStartedAt": _timestamp(),
         }

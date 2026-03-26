@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { ProjectProvider } from "../../../context/project-context";
 import { useProjectContext } from "../../../context/project-context";
 import type { Chat, Project, ProjectDocument, ProjectSettings } from "../../../types";
+import { apiFetch } from "../../../lib/api";
 
 const KnowledgeSidebar = dynamic(
   () =>
@@ -40,13 +41,21 @@ type InitialData = {
 };
 
 function ProjectLayoutInner({ children }: { children: ReactNode }) {
-  const { documents, selectedDocumentId, setSelectedDocumentId } =
+  const { activeProjectId, documents, selectedDocumentId, setSelectedDocumentId } =
     useProjectContext();
 
   const selectedDocument =
     selectedDocumentId != null
       ? (documents.find((d) => d.id === selectedDocumentId) ?? null)
       : null;
+
+  const handleReprocess = selectedDocument && activeProjectId
+    ? () => {
+        apiFetch(`/projects/${activeProjectId}/files/${selectedDocument.id}/reprocess`, { method: "POST" })
+          .then(() => setSelectedDocumentId(null))
+          .catch(() => {});
+      }
+    : undefined;
 
   return (
     <>
@@ -56,6 +65,7 @@ function ProjectLayoutInner({ children }: { children: ReactNode }) {
         <DocumentModal
           doc={selectedDocument}
           onClose={() => setSelectedDocumentId(null)}
+          onReprocess={handleReprocess}
         />
       )}
     </>

@@ -191,6 +191,7 @@ def _partition_via_api(
         kwargs["split_pdf_page"] = True
         kwargs["split_pdf_allow_failed"] = True
         kwargs["split_pdf_concurrency_level"] = 8
+        kwargs["extract_image_block_types"] = ["Image", "Table"]
 
     try:
         with _build_unstructured_api_client(settings) as client:
