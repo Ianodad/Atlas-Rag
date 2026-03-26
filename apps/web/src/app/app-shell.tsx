@@ -17,7 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   } = useProjectsContext();
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
 
       <main className="flex flex-col flex-1 min-w-0 p-4 gap-[14px]">
