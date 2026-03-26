@@ -98,7 +98,10 @@ class ChunkSummarizer:
             return None
 
         prompt = self._build_summary_prompt(chunk)
-        client = OpenAI(api_key=self.settings.openai_api_key.get_secret_value())
+        client = OpenAI(
+            api_key=self.settings.openai_api_key.get_secret_value(),
+            timeout=30.0,
+        )
 
         _max_retries = 2
         for attempt in range(_max_retries + 1):
@@ -120,21 +123,20 @@ class ChunkSummarizer:
         elements = chunk["original_content"].get("elements", [])
         text_parts = [str(element.get("text") or "").strip() for element in elements if str(element.get("text") or "").strip()]
         table_parts = [str(element.get("table_html") or "").strip() for element in elements if element.get("table_html")]
-        image_parts = [str(element.get("image_base64") or "").strip() for element in elements if element.get("image_base64")]
+        image_count = sum(1 for element in elements if element.get("image_base64"))
         text_block = "\n".join(text_parts) or "(none)"
         table_block = "\n\n".join(table_parts) or "(none)"
-        image_block = "\n\n".join(image_parts) or "(none)"
-        return "\n\n".join(
-            [
-                "Write concise retrieval text for a RAG system.",
-                "Focus on facts users may search for. Mention the key entities, values, and relationships.",
-                "Do not mention that this is a summary. Keep it grounded in the provided content.",
-                f"Document section: {chunk['metadata'].get('section_title') or 'none'}",
-                f"Text:\n{text_block}",
-                f"Tables:\n{table_block}",
-                f"Images:\n{image_block}",
-            ]
-        )
+        parts = [
+            "Write concise retrieval text for a RAG system.",
+            "Focus on facts users may search for. Mention the key entities, values, and relationships.",
+            "Do not mention that this is a summary. Keep it grounded in the provided content.",
+            f"Document section: {chunk['metadata'].get('section_title') or 'none'}",
+            f"Text:\n{text_block}",
+            f"Tables:\n{table_block}",
+        ]
+        if image_count:
+            parts.append(f"This section also contains {image_count} image(s) that illustrate the surrounding text.")
+        return "\n\n".join(parts)
 
     def _fallback_summary(self, chunk: ChunkRecord) -> str:
         elements = chunk["original_content"].get("elements", [])
