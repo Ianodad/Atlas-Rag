@@ -244,6 +244,8 @@ class RetrievalService:
                             b64 = b64.split(",", 1)[1]
                         images.append(b64)
 
+            snippet = (chunk.get("retrieval_text") or "")[:280].strip() or None
+
             citations.append(
                 {
                     "chunk_id": chunk_id or None,
@@ -254,6 +256,7 @@ class RetrievalService:
                     "source_type": meta.get("source_type"),
                     "source_url": meta.get("source_url"),
                     "has_images": has_images,
+                    "snippet": snippet,
                 }
             )
 

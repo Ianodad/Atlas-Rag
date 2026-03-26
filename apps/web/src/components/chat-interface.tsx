@@ -46,39 +46,138 @@ function ChunkImages({ chunkId }: { chunkId: string }) {
   );
 }
 
-function CitationPill({ citation, idx }: { citation: Citation; idx: number }) {
-  let label = citation.filename;
-  if (!label && citation.source_url) {
-    try {
-      label = new URL(citation.source_url).hostname;
-    } catch {
-      label = citation.source_url.slice(0, 40);
+type CitationGroup = {
+  key: string;
+  label: string;
+  isUrl: boolean;
+  sourceUrl?: string;
+  citations: Citation[];
+};
+
+function groupCitations(citations: Citation[]): CitationGroup[] {
+  const map = new Map<string, CitationGroup>();
+  for (const c of citations) {
+    let key: string;
+    let label: string;
+    let isUrl = false;
+    let sourceUrl: string | undefined;
+
+    if (c.source_type === "url" && c.source_url) {
+      key = c.source_url;
+      try { label = new URL(c.source_url).hostname; } catch { label = c.source_url.slice(0, 40); }
+      isUrl = true;
+      sourceUrl = c.source_url;
+    } else {
+      key = c.filename || c.document_id || "unknown";
+      label = c.filename || "Unknown source";
     }
+
+    if (!map.has(key)) {
+      map.set(key, { key, label, isUrl, sourceUrl, citations: [] });
+    }
+    map.get(key)!.citations.push(c);
   }
-  if (!label) label = `Source ${idx + 1}`;
-  const page = citation.page ? ` p.${citation.page}` : "";
-  const inner = (
-    <span className="inline-flex items-center gap-[5px] rounded-full text-[0.72rem] px-[10px] py-[5px] border border-[rgba(250,204,21,0.18)] bg-neon-highlight text-neon-accent">
-      <Icon name="file-text" />
-      <span className="truncate max-w-[160px]">
-        {label}
-        {page}
-      </span>
-    </span>
+  return Array.from(map.values());
+}
+
+function CitationModal({ group, onClose }: { group: CitationGroup; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="relative w-full max-w-xl max-h-[80vh] flex flex-col rounded-[20px] bg-neon-surface border border-neon-border shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-neon-border shrink-0">
+          <div className="text-neon-accent shrink-0"><Icon name="file-text" /></div>
+          <span className="text-neon-text font-semibold truncate flex-1">{group.label}</span>
+          <span className="text-[0.72rem] text-neon-muted mr-2 shrink-0">
+            {group.citations.length} citation{group.citations.length !== 1 ? "s" : ""}
+          </span>
+          <button
+            onClick={onClose}
+            className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg border border-neon-border text-neon-muted hover:text-neon-text hover:bg-neon-elevated transition-[140ms] shrink-0"
+          >
+            <Icon name="x" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-auto flex-1 p-5 flex flex-col">
+          {group.citations.map((c, i) => (
+            <div key={i}>
+              {i > 0 && <div className="border-t border-neon-border/40 my-4" />}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[0.65rem] font-semibold text-neon-muted uppercase tracking-wider">
+                  Citation {i + 1}
+                </span>
+                {c.page && (
+                  <span className="text-[0.65rem] px-[6px] py-[2px] rounded-full bg-neon-highlight border border-[rgba(250,204,21,0.18)] text-neon-accent">
+                    p.&nbsp;{c.page}
+                  </span>
+                )}
+              </div>
+              {c.snippet && (
+                <p className="m-0 text-sm text-neon-text/80 leading-relaxed bg-white/[0.02] rounded-lg px-3 py-[10px] border border-neon-border/50">
+                  {c.snippet}
+                </p>
+              )}
+              {c.has_images && c.chunk_id && (
+                <div className="mt-3">
+                  <p className="m-0 text-[0.65rem] text-neon-muted uppercase tracking-wider mb-2">
+                    Images from this citation
+                  </p>
+                  <ChunkImages chunkId={c.chunk_id} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
-  if (citation.source_type === "url" && citation.source_url) {
-    return (
-      <a
-        href={citation.source_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={citation.source_url}
+}
+
+function CitationFilePill({ group }: { group: CitationGroup }) {
+  const [hovered, setHovered] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const firstSnippet = group.citations.find((c) => c.snippet)?.snippet;
+  const count = group.citations.length;
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={() => setModalOpen(true)}
+        className="inline-flex items-center gap-[5px] rounded-full text-[0.72rem] px-[10px] py-[5px] border border-[rgba(250,204,21,0.18)] bg-neon-highlight text-neon-accent hover:border-neon-accent/50 hover:bg-neon-elevated transition-[140ms]"
       >
-        {inner}
-      </a>
-    );
-  }
-  return inner;
+        <Icon name="file-text" />
+        <span className="truncate max-w-[160px]">{group.label}</span>
+        {count > 1 && (
+          <span className="flex items-center justify-center w-[16px] h-[16px] rounded-full bg-neon-accent/20 text-[0.6rem] font-bold leading-none">
+            {count}
+          </span>
+        )}
+      </button>
+
+      {hovered && firstSnippet && (
+        <div className="absolute bottom-full left-0 mb-2 z-20 w-64 p-3 rounded-xl bg-neon-elevated border border-neon-border shadow-xl pointer-events-none">
+          <p className="m-0 text-[0.72rem] text-neon-text/80 leading-relaxed line-clamp-4">
+            {firstSnippet}
+          </p>
+        </div>
+      )}
+
+      {modalOpen && <CitationModal group={group} onClose={() => setModalOpen(false)} />}
+    </div>
+  );
 }
 
 function StreamingBubble({
@@ -175,26 +274,9 @@ export function ChatInterface() {
                     </p>
                     {message.citations?.length ? (
                       <div className="flex gap-2 flex-wrap mt-3">
-                        {message.citations.map((citation, idx) => (
-                          <CitationPill
-                            key={`${message.id}-${idx}`}
-                            citation={citation}
-                            idx={idx}
-                          />
+                        {groupCitations(message.citations).map((group) => (
+                          <CitationFilePill key={group.key} group={group} />
                         ))}
-                      </div>
-                    ) : null}
-                    {message.role === "assistant" &&
-                    message.citations?.some((c) => c.has_images && c.chunk_id) ? (
-                      <div className="mt-3 pt-3 border-t border-neon-border/40">
-                        <p className="text-[0.72rem] text-neon-muted mb-2 uppercase tracking-wide">
-                          Images from sources
-                        </p>
-                        {message.citations
-                          .filter((c) => c.has_images && c.chunk_id)
-                          .map((c) => (
-                            <ChunkImages key={c.chunk_id!} chunkId={c.chunk_id!} />
-                          ))}
                       </div>
                     ) : null}
                     {message.role === "assistant" && (

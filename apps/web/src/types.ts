@@ -24,6 +24,7 @@ export type Citation = {
   document_id?: string | null;
   chunk_index?: number | null;
   has_images?: boolean;
+  snippet?: string | null;
 };
 
 export type MessageFeedback = {
