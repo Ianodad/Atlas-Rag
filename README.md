@@ -1,282 +1,248 @@
 # AtlasRAG
 
-Monorepo scaffold for the AtlasRAG multimodal RAG application.
+A production-grade **multimodal RAG** (Retrieval-Augmented Generation) application built as a monorepo. Supports document ingestion (PDF, DOCX, PPTX, Markdown, HTML, URLs), multimodal image extraction, vector + keyword hybrid search, LLM-powered answer generation with streaming, and a full-featured web interface with real-time citations.
 
-This repository is currently at:
+## Architecture
 
-- Phase 1 complete: monorepo scaffold
-- Phase 2 in place: Supabase-backed infrastructure setup and local runbooks
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Next.js 16 Frontend                         │
+│                  (React 19 · Tailwind · SSE client)                │
+│                                                                     │
+│   ┌──────────┐  ┌──────────────┐  ┌────────────┐  ┌────────────┐  │
+│   │ Projects  │  │  Chat + SSE  │  │ Knowledge  │  │  Document  │  │
+│   │   Grid    │  │  Interface   │  │  Sidebar   │  │   Modal    │  │
+│   └──────────┘  └──────────────┘  └────────────┘  └────────────┘  │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │ /api/* proxy
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                       FastAPI Backend (:8011)                       │
+│                                                                     │
+│   ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌─────────────────┐  │
+│   │ Projects  │  │  Chats   │  │   Files   │  │    Retrieval    │  │
+│   │  CRUD     │  │  CRUD    │  │  Upload   │  │  + RAG Service  │  │
+│   └──────────┘  └──────────┘  └─────┬─────┘  └────────┬────────┘  │
+└──────────────────────────────────────┼─────────────────┼────────────┘
+                                       │                 │
+                    ┌──────────────────┘                 │
+                    ▼                                     ▼
+┌──────────────────────────┐        ┌─────────────────────────────────┐
+│    Celery Worker Queue   │        │         External LLMs           │
+│        (via Redis)       │        │                                 │
+│                          │        │  ┌───────────┐  ┌───────────┐  │
+│  ┌────────────────────┐  │        │  │  OpenAI   │  │  OpenAI   │  │
+│  │  Document Pipeline  │  │        │  │ Embeddings│  │ Chat/GPT  │  │
+│  │                    │  │        │  │(3-small)  │  │(Streaming)│  │
+│  │  Partition → Chunk │  │        │  └───────────┘  └───────────┘  │
+│  │  → Summarize       │  │        └─────────────────────────────────┘
+│  │  → Embed → Store   │  │
+│  └────────────────────┘  │
+└────────────┬─────────────┘
+             │
+             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Supabase (Managed)                              │
+│                                                                     │
+│   ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐     │
+│   │  PostgreSQL   │  │   Storage    │  │   pgvector           │     │
+│   │  (7 tables)   │  │  (file blobs)│  │  (1536-dim vectors)  │     │
+│   └──────────────┘  └──────────────┘  └──────────────────────┘     │
+│                                                                     │
+│   ┌──────────────┐  ┌──────────────┐                               │
+│   │  PostgREST   │  │  Auth / RLS  │                               │
+│   └──────────────┘  └──────────────┘                               │
+└─────────────────────────────────────────────────────────────────────┘
 
-## Default App Ports
-
-To avoid common local conflicts, this repo uses:
-
-- web client: `3101`
-- FastAPI API: `8011`
-- Redis: `6379`
-
-## Layout
-
-```text
-apps/
-  web/       Next.js frontend
-  api/       FastAPI backend
-  worker/    background worker
-packages/
-  config/    shared config/constants
-  types/     shared TypeScript types
-  ui/        shared frontend components
-  prompts/   prompt templates and retrieval rules
-infra/
-  compose/   local infrastructure
-  docker/    service Dockerfiles
-scripts/
-  dev/       helper scripts
-  seed/      seed data scripts
-  eval/      evaluation scripts
-docs/
-  architecture/  architecture notes
-  api/           API references
-  decisions/     ADRs and tradeoffs
-examples/
-  sample-docs/   local sample ingestion fixtures
-supabase/
-  migrations/    Supabase SQL migrations
+           ┌───────────────┐
+           │     Redis     │
+           │  (local Docker│
+           │   broker)     │
+           └───────────────┘
 ```
 
-## Phase 2: Local Infrastructure
+## Tech Stack
 
-Phase 2 now uses Supabase instead of self-hosting raw Postgres and MinIO locally.
+| Layer | Technology |
+|---|---|
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS v3 |
+| **Backend API** | FastAPI (Python 3.12), Pydantic, uvicorn |
+| **Worker** | Celery, Redis (broker) |
+| **Database** | Supabase PostgreSQL + pgvector (1536-dim embeddings) |
+| **Storage** | Supabase Storage (presigned URL uploads) |
+| **Document Parsing** | Unstructured API (hosted) — PDF, DOCX, PPTX, MD, TXT, HTML |
+| **Embeddings** | OpenAI `text-embedding-3-small` (1536 dimensions) |
+| **LLM** | OpenAI GPT-4o (answer generation + chunk summarization) |
+| **Monorepo** | pnpm workspaces + Turborepo |
+| **Infrastructure** | Docker Compose (Redis), Supabase (managed cloud) |
 
-That gives you:
+## Implemented Features
 
-- Supabase-managed Postgres
-- Supabase `pgvector` support
-- Supabase Storage
-- Supabase dashboard and API keys
-- local Redis for worker coordination
+### Monorepo & Infrastructure
+- **pnpm + Turborepo** monorepo with `apps/` (web, api, worker) and `packages/` (config, types, ui, prompts)
+- **Local Redis** via Docker Compose for Celery task broker
+- **Supabase** for managed PostgreSQL, pgvector, file storage, and PostgREST API
+- One-command dev startup: `pnpm dev:all`
 
-This is the simpler build path because the project no longer has to run and maintain a local database, local object storage, and separate admin tools during early development.
+### Database Schema
+- **7 tables**: `projects`, `project_settings`, `project_documents`, `document_chunks`, `chats`, `chat_messages`, `message_feedback`
+- SQL migrations managed via Supabase CLI
+- `pgvector` extension with `vector(1536)` column and HNSW index for fast similarity search
+- GIN indexes for keyword search (`to_tsvector`)
+
+### API (FastAPI)
+- Full **CRUD** for projects, chats, and messages
+- **File upload**: 3-step presigned URL flow (get URL → client PUT → confirm)
+- **URL ingestion**: submit a URL for HTML extraction and processing
+- **Document reprocessing**: individual and bulk reprocess endpoints
+- **Retrieval service** with 4 strategies:
+  - **Vector search** — cosine similarity on pgvector embeddings
+  - **Keyword search** — PostgreSQL full-text search with `ts_rank`
+  - **Hybrid search** — vector + keyword combined via Reciprocal Rank Fusion (RRF)
+  - **Multi-query** — LLM generates sub-queries, results merged with RRF
+- **Answer generation** with SSE streaming (`text/event-stream`)
+  - Events: `status`, `token`, `error`, `done`
+  - Guardrail check → retrieve context → stream LLM response
+- **Citations** returned with each answer: document name, page number, chunk index, text snippet
+- Fake auth middleware for development (configurable user context)
+- CORS, health checks, structured logging
+
+### Document Processing Pipeline (Celery Worker)
+- **Partitioning**: Unstructured API extracts elements (text, titles, tables, images) from uploaded files/URLs
+  - Multimodal image extraction (`extract_image_block_types: Image, Table`)
+  - Supports PDF, DOCX, PPTX, Markdown, plain text, HTML
+- **Chunking**: Section-aware chunking with configurable soft/hard token limits
+  - Preserves document structure (headings, sections)
+  - Maintains image associations through the pipeline
+  - Per-element metadata: page numbers, section titles, element types
+- **Summarization**: LLM-powered retrieval-focused summaries for complex chunks
+  - Tables and images get specialized summarization prompts
+  - Heuristic fallback for simple text-only chunks
+  - Token-efficient image handling (counts instead of raw base64)
+- **Embeddings**: OpenAI `text-embedding-3-small` batch embedding
+  - Batched API calls with retry logic
+  - Stored as `vector(1536)` in `document_chunks`
+- **Pipeline status tracking**: `queued → processing → partitioning → chunking → summarising → embedding → completed/failed`
+  - Detailed `processing_details` JSONB with phase timestamps, diagnostics, and error info
+  - Automatic retry (2 retries with exponential backoff)
+- MIME type validation and file size limits
+
+### Frontend (Next.js + React)
+- **Project workspace**: create/switch projects, project settings panel
+- **Knowledge base sidebar**: document list with upload status indicators, file upload (drag-and-drop), URL ingestion, settings tab (chunking params, retrieval strategy, model selection)
+- **Chat interface**: message bubbles with Markdown rendering, SSE streaming with live token display
+- **Citation display**:
+  - Citations grouped by source document with pill-style badges
+  - Hover tooltips showing text snippet previews
+  - Click-to-expand citation modal with full details and chunk images
+- **Document modal**: processing pipeline stepper, document metadata, extracted image gallery with lightbox viewer
+- **Image lightbox**: full-screen viewer with keyboard navigation for extracted document images
+- **Reprocessing**: trigger document reprocessing from the UI when images are missing
+- 5-second polling for active document processing status
+- Responsive layout with viewport-locked sidebars
+- Custom `neon-*` dark theme color palette
+
+### Processing Visibility
+- Real-time document processing status in the knowledge sidebar
+- Document modal shows pipeline phase stepper (partition → chunk → summarize → embed)
+- Processing diagnostics: element counts, chunk previews, timing data
+- Error display with retry status
+
+### Chat UX
+- Real-time SSE streaming with token-by-token display
+- Streaming status indicator
+- Message feedback (thumbs up/down) stored in `message_feedback` table
+- Chat history with conversation management (create, delete, switch)
+
+### Hardening & Reliability
+- Structured logging throughout API and worker
+- Celery task retries with exponential backoff (30s × attempt)
+- Soft/hard time limits on worker tasks (9/10 min)
+- OpenAI client timeouts (30s) to prevent indefinite hangs
+- MIME type validation on upload
+- File size limits
+- Diagnostic data size management (strip base64 from processing_details)
+
+## Project Layout
+
+```
+apps/
+  web/           Next.js 16 frontend (port 3101)
+  api/           FastAPI backend (port 8011)
+  worker/        Celery document processing worker
+packages/
+  config/        shared config/constants
+  types/         shared TypeScript types
+  ui/            shared frontend components
+  prompts/       prompt templates and retrieval rules
+infra/
+  compose/       Docker Compose for local Redis
+supabase/
+  migrations/    SQL migration files
+```
+
+## Default Ports
+
+| Service | Port |
+|---|---|
+| Web client | `3101` |
+| FastAPI API | `8011` |
+| Redis | `6379` |
 
 ## Prerequisites
 
-1. Install Docker Desktop or Docker Engine with the Compose plugin.
-2. Install Node.js 22 LTS or another Next.js 16 compatible LTS release.
-3. Install `pnpm`.
-4. Install Python 3.12 and `uv`.
-5. Create a Supabase project.
-6. Copy `.env.example` to `.env` and fill in the Supabase values.
-7. Add your hosted Unstructured API credentials to `.env`:
+1. **Docker** — Desktop or Engine with Compose plugin
+2. **Node.js 22 LTS** (or compatible)
+3. **pnpm** — package manager
+4. **Python 3.12** + **uv** — for API and worker
+5. **Supabase project** — cloud-hosted
+6. **OpenAI API key** — for embeddings and LLM
+7. **Unstructured API key** — for document parsing
 
-```bash
-UNSTRUCTURED_API_KEY=replace-me
-UNSTRUCTURED_API_URL=https://api.unstructuredapp.io/general/v0/general
-UNSTRUCTURED_SSL_VERIFY=true
-UNSTRUCTURED_CA_BUNDLE=
-```
+Copy `.env.example` to `.env` and fill in all values.
 
 ## Quick Start
 
-1. Install workspace dependencies:
-
 ```bash
+# 1. Install JS dependencies
 pnpm install
-```
 
-2. Install Python dependencies for the API and worker:
+# 2. Install Python dependencies
+cd apps/api && uv sync && cd ../worker && uv sync && cd ../..
 
-```bash
-cd apps/api && uv sync
-cd ../worker && uv sync
-cd ../..
-```
-
-The worker uses the hosted Unstructured Partition API for:
-`pdf`, `docx`, `pptx`, `md`, `txt`, and `html/url`.
-That avoids local OCR/inference dependencies such as `unstructured-inference`, `torch`, and CUDA downloads.
-
-3. Start local Redis:
-
-```bash
-pnpm infra:up
-```
-
-4. Check local service status:
-
-```bash
-pnpm infra:status
-```
-
-5. Stop local Redis when finished:
-
-```bash
-pnpm infra:down
-```
-
-6. Follow logs:
-
-```bash
-pnpm infra:logs
-pnpm infra:logs redis
-```
-
-7. Start the current local stack with one command:
-
-```bash
+# 3. Start everything (Redis + API + Worker + Web)
 pnpm dev:all
 ```
 
-That command:
-
-- starts local Redis
-- starts the FastAPI API on `8011`
-- starts the Celery worker from `apps/worker`
-- starts the Next.js app on `3101`
-- stops the API and worker child processes when you exit
-
-If you start the app processes manually instead, use the repo defaults:
+Or start services individually:
 
 ```bash
-pnpm --filter @atlas-rag/web dev
-uvicorn apps.api.src.main:app --reload --port 8011
+pnpm infra:up                         # Redis
+pnpm --filter @atlas-rag/web dev      # Next.js on :3101
+uvicorn apps.api.src.main:app --reload --port 8011  # API
+pnpm dev:worker                        # Celery worker
 ```
 
-For the worker:
+## Environment Variables
 
-```bash
-pnpm dev:worker
-```
-
-## What Runs Where
-
-| Component | Purpose | Where it runs |
-|---|---|---|
-| Supabase Postgres | primary relational DB + vector store | managed by Supabase |
-| Supabase Storage | file uploads and object storage | managed by Supabase |
-| Supabase dashboard/API | project admin, keys, SQL editor, APIs | managed by Supabase |
-| Redis | worker broker / cache | local Docker on `localhost:6379` |
-
-## Supabase Setup
-
-1. Create a new Supabase project.
-2. In the project dashboard, collect:
-   - project URL
-   - anon key
-   - service role key
-   - Postgres connection string
-3. Put those values into `.env`.
-4. Enable the `vector` extension in Supabase if it is not already enabled.
-5. Create a storage bucket for documents when the upload flow starts.
-
-Supabase’s platform already gives you Postgres, Storage, and vector support in one place, which is why this replaces the earlier local Postgres and MinIO setup.
-
-## Required Environment Variables
-
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `REDIS_HOST`
-- `REDIS_PORT`
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-
-Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only. Do not expose it in the web app.
-
-For the FastAPI server, the default integration path is now the Supabase Python client over `SUPABASE_URL`, not direct Postgres. Keep `SUPABASE_DB_URL` only for migrations or raw SQL tooling.
-
-## Redis
-
-- Redis remains local because the worker/broker flow is independent of whether the database is managed by Supabase.
-- This keeps background-job development fast without forcing you to self-host the whole backend platform.
-
-## Schema Workflow
-
-- Do not use Docker init SQL for database bootstrapping anymore.
-- Store future SQL in [supabase/migrations/README.md](/home/adera/Documents/Rag Tut/atlas-rag/supabase/migrations/README.md) and replace that placeholder with real migrations in Phase 3.
-- Use the Supabase SQL editor or Supabase migration tooling when the schema work starts.
-
-## Recommended Local Workflow
-
-1. Bring up Redis first with `pnpm infra:up`.
-2. Confirm Redis is healthy with `pnpm infra:status`.
-3. Verify your `.env` points at a real Supabase project.
-4. Keep API and worker processes outside Docker until the internal service boundaries stabilize.
-5. Treat Supabase as the source of truth for database and storage configuration.
-
-## Verification Checklist
-
-After setup, verify:
-
-- the Supabase dashboard is reachable
-- the Supabase API keys are present in `.env`
-- Redis is running locally on `localhost:6379`
-
-You can verify the local part with:
-
-```bash
-pnpm infra:status
-pnpm infra:logs redis
-```
-
-Expected outcome:
-
-- Redis is healthy
-- the worker is connected to Redis and consuming the `documents` queue
-- Supabase project is reachable
-- Supabase credentials are configured locally
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
+| `OPENAI_API_KEY` | OpenAI API key for embeddings + LLM |
+| `UNSTRUCTURED_API_KEY` | Unstructured hosted API key |
+| `UNSTRUCTURED_API_URL` | Unstructured API endpoint |
+| `REDIS_HOST` / `REDIS_PORT` | Redis connection (default `localhost:6379`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Client-side Supabase URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client-side Supabase anon key |
 
 ## Troubleshooting
 
-### Redis port already in use
-
-Edit `.env` and change:
-
-- `REDIS_PORT`
-
-Then restart the stack.
-
-### Supabase connection fails
-
-Check:
-
-- the exact project URL
-- the anon key
-- the service role key
-- the database password embedded in `SUPABASE_DB_URL`
-
-### Vector search is unavailable
-
-Enable the `vector` extension in the Supabase dashboard before implementing retrieval features.
-
-### Document partitioning fails locally
-
-Check:
-
-- `apps/worker` dependencies were installed with `uv sync`
-- `UNSTRUCTURED_API_KEY` is present in `.env`
-- if your network injects a custom/self-signed TLS root, set `UNSTRUCTURED_CA_BUNDLE` to its PEM bundle
-- the worker is running via `pnpm dev:worker` or `pnpm dev:all`
-
-### Storage bucket is missing
-
-Create the application bucket in Supabase Storage when the upload flow starts.
-
-## Architecture Decisions
-
-Architecture patterns and tradeoffs live in [DECISIONS.md](/home/adera/Documents/Rag Tut/atlas-rag/docs/decisions/DECISIONS.md).
-
-When making changes, update that file if the change affects:
-
-- infrastructure defaults
-- service boundaries
-- major dependency choices
-- shared engineering patterns
-
-## Current state
-
-This repo now has:
-
-- the step 1 monorepo scaffold
-- the phase 2 Supabase-backed infrastructure setup
-- local Redis scripts for start, stop, status, and logs
-- an architecture decision log for future changes
+- **Redis port conflict**: Change `REDIS_PORT` in `.env` and restart
+- **Supabase connection fails**: Verify URL, anon key, and service role key in `.env`
+- **Vector search unavailable**: Enable the `vector` extension in Supabase dashboard
+- **Document parsing fails**: Check `UNSTRUCTURED_API_KEY` is set; check worker is running (`pnpm dev:worker`)
+- **Worker not picking up tasks**: Restart the worker process — Celery doesn't auto-reload on code changes
+- **Images not extracted**: Ensure documents are processed after the `extract_image_block_types` fix; reprocess from document modal if needed
+- **Slow document listing**: Large `processing_details` JSONB can cause timeouts on free-tier Supabase; reprocess affected documents
